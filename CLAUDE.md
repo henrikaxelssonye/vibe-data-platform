@@ -22,7 +22,8 @@ vibe-data-platform/
 │       └── validate/                 # Data quality checks
 ├── .github/
 │   └── workflows/
-│       └── pipeline.yml              # Scheduled GitHub Actions workflow
+│       ├── pipeline.yml              # Basic scheduled workflow
+│       └── agentic-pipeline.yml      # Claude-powered self-healing workflow
 ├── azure/
 │   ├── setup.sh                      # Provision Azure resources
 │   ├── teardown.sh                   # Remove Azure resources
@@ -145,9 +146,11 @@ cd dbt && dbt show --select customer_orders
 ### execution_mode.yml
 
 Controls pipeline behavior:
-- `mode`: "autonomous" or "human-in-loop"
+- `mode`: "autonomous", "human-in-loop", or "autonomous-ci"
 - `max_retries`: Retry attempts (default: 3)
-- `min_confidence`: Threshold for auto-fix (default: 0.8)
+- `min_confidence`: Threshold for auto-fix (0.8 local, 0.7 CI)
+- `auto_detect_ci`: Auto-switch to CI mode in GitHub Actions (default: true)
+- `ci.commit_strategy`: How to handle fixes in CI ("none", "direct", "pr")
 
 ### sources.yml
 
@@ -295,7 +298,33 @@ cd dbt && dbt build --target azure
 
 ## Scheduled Execution
 
-Pipeline runs are scheduled via GitHub Actions (`.github/workflows/pipeline.yml`).
+Pipeline runs are scheduled via GitHub Actions. Two workflows are available:
+
+| Workflow | File | Description |
+|----------|------|-------------|
+| Basic | `pipeline.yml` | Simple dbt execution, fails on error |
+| Agentic | `agentic-pipeline.yml` | Claude-powered self-healing pipeline |
+
+### Agentic Pipeline (Recommended)
+
+The agentic workflow uses `anthropics/claude-code-action` to run pipelines with intelligent self-healing:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 Claude Pipeline Orchestrator                 │
+│                                                             │
+│  1. Run dbt build                                           │
+│  2. If error → /diagnose → /apply-fix → retry (max 3x)     │
+│  3. If unrecoverable → Create detailed GitHub Issue         │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Benefits:**
+- Automatic error diagnosis and fix application
+- Up to 3 retry attempts with exponential backoff
+- Detailed root cause analysis in GitHub Issues
+- Lower noise - only creates issues for truly unresolvable errors
 
 ### Schedule Configuration
 
@@ -311,28 +340,100 @@ schedule:
 ### Manual Trigger
 
 ```bash
-# Trigger via GitHub CLI
-gh workflow run pipeline.yml
+# Trigger agentic pipeline (recommended)
+gh workflow run agentic-pipeline.yml
 
 # With options
-gh workflow run pipeline.yml -f dbt_command=test -f full_refresh=true
+gh workflow run agentic-pipeline.yml -f dbt_command=build -f max_retries=3
+
+# Trigger basic pipeline (no self-healing)
+gh workflow run pipeline.yml
 ```
 
 ### Required GitHub Secrets
 
-| Secret | Description |
-|--------|-------------|
-| `AZURE_STORAGE_ACCOUNT` | Storage account name |
-| `AZURE_STORAGE_KEY` | Storage account access key |
-| `AZURE_CREDENTIALS` | Service Principal JSON |
-| `LOGIC_APP_EMAIL_URL` | Logic App webhook (optional) |
-| `NOTIFICATION_WEBHOOK_URL` | Teams/Slack webhook (optional) |
+| Secret | Description | Required For |
+|--------|-------------|--------------|
+| `ANTHROPIC_API_KEY` | Anthropic API key for Claude | Agentic workflow |
+| `AZURE_STORAGE_ACCOUNT` | Storage account name | Both workflows |
+| `AZURE_STORAGE_KEY` | Storage account access key | Both workflows |
+| `LOGIC_APP_EMAIL_URL` | Logic App webhook | Optional |
+| `NOTIFICATION_WEBHOOK_URL` | Teams/Slack webhook | Optional |
+
+### Execution Modes
+
+Configure in `config/execution_mode.yml`:
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `human-in-loop` | Requires approval for fixes | Local development |
+| `autonomous` | Auto-applies high-confidence fixes | Trusted automation |
+| `autonomous-ci` | Full autonomous with CI optimizations | GitHub Actions |
+
+The agentic workflow automatically uses `autonomous-ci` mode when `auto_detect_ci: true`.
 
 ### Notifications
 
-On failure, the workflow sends alerts via:
-- **GitHub Issues**: Auto-created with `pipeline-failure` label
+On failure (after self-healing attempts exhausted):
+- **GitHub Issues**: Auto-created with detailed RCA and labels
 - **Email**: Via Azure Logic App (if configured)
 - **Webhook**: Teams or Slack (if configured)
 
 Configure in `config/notifications.yml`.
+
+## Agentic Self-Healing
+
+The platform implements intelligent self-healing using Claude agents.
+
+### How It Works
+
+```
+Error Occurs
+    │
+    ▼
+┌─────────────────┐
+│   /diagnose     │  ← Analyze error, classify type, find root cause
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  /apply-fix     │  ← Generate fix, create backup, apply change
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  /validate      │  ← Verify fix worked, check data quality
+└────────┬────────┘
+         │
+    Success? ──No──► Retry (up to max_retries)
+         │
+        Yes
+         │
+         ▼
+      Complete
+```
+
+### Error Classification
+
+The diagnostician agent classifies errors:
+
+| Type | Pattern | Auto-Fix Confidence |
+|------|---------|---------------------|
+| SCHEMA | Column not found | High (85-95%) |
+| SYNTAX | Compilation error | High (80-90%) |
+| MISSING_REF | Relation doesn't exist | Medium (70-85%) |
+| DATA_QUALITY | Test failure | Medium (60-80%) |
+| DATABASE | DuckDB error | Low (40-60%) |
+
+### Confidence Thresholds
+
+- **>= 0.8**: Auto-apply in `autonomous` mode
+- **>= 0.7**: Auto-apply in `autonomous-ci` mode
+- **< threshold**: Requires human approval or creates issue
+
+### Audit Trail
+
+All actions are logged:
+- `logs/pipeline_runs.log`: Execution history
+- `logs/errors.log`: Error details and diagnosis
+- `logs/fixes.log`: Applied fixes with timestamps and confidence scores

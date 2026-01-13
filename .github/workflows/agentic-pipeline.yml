@@ -1,0 +1,395 @@
+# Vibe Data Platform - Agentic Pipeline Workflow
+#
+# This workflow uses Claude Code Action to run the dbt pipeline with intelligent
+# self-healing capabilities. On failure, Claude diagnoses errors, applies fixes,
+# and retries automatically (up to 3 times).
+#
+# Architecture:
+#   1. Setup: Download DuckDB from Azure, install dependencies
+#   2. Agent: Claude acts as pipeline-orchestrator with /run-pipeline, /diagnose, /apply-fix
+#   3. Finalize: Upload DuckDB and logs to Azure, send notifications
+#
+# Required GitHub Secrets:
+#   ANTHROPIC_API_KEY         - Anthropic API key for Claude
+#   AZURE_STORAGE_ACCOUNT     - Azure Storage account name
+#   AZURE_STORAGE_KEY         - Azure Storage account access key
+#   LOGIC_APP_EMAIL_URL       - Logic App HTTP trigger URL for email (optional)
+#   NOTIFICATION_WEBHOOK_URL  - Teams or Slack webhook URL (optional)
+
+name: Agentic Data Pipeline
+
+permissions:
+  contents: write      # Claude may commit fixes
+  pull-requests: write # Claude may create PRs for fixes
+  issues: write        # Claude creates issues for unrecoverable failures
+  id-token: write      # Required for claude-code-action
+
+on:
+  # Scheduled runs - default: daily at 6:00 AM UTC
+  schedule:
+    - cron: '0 6 * * *'
+
+  # Manual trigger with optional parameters
+  workflow_dispatch:
+    inputs:
+      dbt_command:
+        description: 'dbt command to run'
+        required: false
+        default: 'build'
+        type: choice
+        options:
+          - build
+          - run
+          - test
+          - seed
+      dbt_select:
+        description: 'Model selection (optional)'
+        required: false
+        default: ''
+      full_refresh:
+        description: 'Run with --full-refresh'
+        required: false
+        default: false
+        type: boolean
+      max_retries:
+        description: 'Max retry attempts for self-healing'
+        required: false
+        default: '3'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '5'
+
+env:
+  AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+  AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # =============================================================================
+  # Job 1: Setup - Prepare environment and download data
+  # =============================================================================
+  setup:
+    name: Setup Environment
+    runs-on: ubuntu-latest
+    outputs:
+      has_database: ${{ steps.download.outputs.has_database }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install dbt-duckdb pyyaml requests azure-storage-blob
+
+      - name: Create directories
+        run: |
+          mkdir -p data/processed
+          mkdir -p logs
+
+      - name: Download DuckDB from Azure
+        id: download
+        run: |
+          az storage blob download \
+            --account-name $AZURE_STORAGE_ACCOUNT \
+            --container-name duckdb \
+            --name vibe.duckdb \
+            --file data/processed/vibe.duckdb \
+            --auth-mode key \
+            --account-key $AZURE_STORAGE_KEY \
+            2>/dev/null && echo "has_database=true" >> $GITHUB_OUTPUT || {
+              echo "No existing database found, starting fresh"
+              echo "has_database=false" >> $GITHUB_OUTPUT
+            }
+
+      - name: Upload workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace
+          path: |
+            data/
+            logs/
+          retention-days: 1
+
+  # =============================================================================
+  # Job 2: Agentic Pipeline - Claude runs and self-heals the pipeline
+  # =============================================================================
+  agentic-pipeline:
+    name: Claude Pipeline Orchestrator
+    needs: setup
+    runs-on: ubuntu-latest
+    outputs:
+      pipeline_status: ${{ steps.orchestrator.outputs.pipeline_status }}
+      retries_used: ${{ steps.orchestrator.outputs.retries_used }}
+      fixes_applied: ${{ steps.orchestrator.outputs.fixes_applied }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install dbt-duckdb pyyaml requests azure-storage-blob
+
+      - name: Download workspace
+        uses: actions/download-artifact@v4
+        with:
+          name: workspace
+          path: .
+
+      - name: Record start time
+        id: start
+        run: echo "time=$(date +%s)" >> $GITHUB_OUTPUT
+
+      - name: Run Claude Pipeline Orchestrator
+        id: orchestrator
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: claude-sonnet-4-20250514
+          timeout_minutes: 30
+
+          prompt: |
+            You are the Pipeline Orchestrator for the Vibe Data Platform.
+
+            ## Your Mission
+
+            Run the dbt data pipeline and ensure it succeeds. If it fails, diagnose the error,
+            fix it, and retry. You have up to ${{ inputs.max_retries || '3' }} retry attempts.
+
+            ## Context
+
+            - Repository: ${{ github.repository }}
+            - Workflow Run: ${{ github.run_id }}
+            - Trigger: ${{ github.event_name }}
+            - dbt Command: ${{ inputs.dbt_command || 'build' }}
+            - Model Selection: ${{ inputs.dbt_select || 'all models' }}
+            - Full Refresh: ${{ inputs.full_refresh || 'false' }}
+
+            ## Instructions
+
+            Read and follow the pipeline-orchestrator agent instructions in:
+            `.claude/agents/pipeline-orchestrator.md`
+
+            Use these skills (read their SKILL.md files for details):
+            - `/run-pipeline` - Execute the dbt pipeline
+            - `/diagnose` - Analyze errors and propose fixes
+            - `/apply-fix --auto` - Apply fixes automatically (CI mode)
+            - `/validate` - Verify data quality after success
+
+            ## Execution Steps
+
+            1. **Read configuration**: Check `config/execution_mode.yml` - use autonomous mode for CI
+            2. **Run the pipeline**:
+               ```bash
+               cd dbt && dbt ${{ inputs.dbt_command || 'build' }} --target azure ${{ inputs.dbt_select && format('--select {0}', inputs.dbt_select) || '' }} ${{ inputs.full_refresh == 'true' && '--full-refresh' || '' }}
+               ```
+            3. **If successful**: Run `/validate` and report success
+            4. **If failed**:
+               - Run `/diagnose` to analyze the error
+               - Run `/apply-fix --auto` to apply the fix
+               - Retry the pipeline (go back to step 2)
+               - Track retry count (max ${{ inputs.max_retries || '3' }})
+            5. **If max retries exceeded**:
+               - Create a detailed GitHub Issue with root cause analysis
+               - Include all diagnostic information
+               - Label with 'pipeline-failure', 'agent-unresolved'
+
+            ## Output Requirements
+
+            At the end of your work, output a JSON summary:
+            ```json
+            {
+              "pipeline_status": "success" | "failure",
+              "retries_used": <number>,
+              "fixes_applied": [<list of fixes>],
+              "error_summary": "<if failed, describe the unresolved error>",
+              "issue_created": <issue number if created>
+            }
+            ```
+
+            ## Important Notes
+
+            - You are running in CI - use autonomous mode (auto-apply fixes with confidence >= 0.8)
+            - Always create backups before modifying files
+            - Log all actions to logs/pipeline_runs.log
+            - If you create an issue, include detailed RCA and suggested manual fixes
+            - Be thorough but efficient - minimize API costs
+
+          allowed_tools: |
+            Read,Write,Edit,Bash,Glob,Grep
+
+          claude_args: |
+            --allowedTools "Read,Write,Edit,Bash(*),Glob,Grep"
+            --max-turns 50
+
+      - name: Calculate duration
+        id: duration
+        if: always()
+        run: |
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - ${{ steps.start.outputs.time }}))
+          echo "duration=${DURATION}s" >> $GITHUB_OUTPUT
+
+      - name: Save workspace
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-after-agent
+          path: |
+            data/
+            logs/
+            dbt/
+          retention-days: 1
+
+  # =============================================================================
+  # Job 3: Finalize - Upload results and send notifications
+  # =============================================================================
+  finalize:
+    name: Upload & Notify
+    needs: [setup, agentic-pipeline]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download workspace
+        uses: actions/download-artifact@v4
+        with:
+          name: workspace-after-agent
+          path: .
+        continue-on-error: true
+
+      - name: Upload DuckDB to Azure
+        if: always()
+        run: |
+          if [ -f "data/processed/vibe.duckdb" ]; then
+            az storage blob upload \
+              --account-name $AZURE_STORAGE_ACCOUNT \
+              --container-name duckdb \
+              --name vibe.duckdb \
+              --file data/processed/vibe.duckdb \
+              --overwrite \
+              --auth-mode key \
+              --account-key $AZURE_STORAGE_KEY
+            echo "DuckDB uploaded to Azure"
+          else
+            echo "No DuckDB file to upload"
+          fi
+
+      - name: Upload logs to Azure
+        if: always()
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+          # Upload all log files
+          for logfile in logs/*.log; do
+            if [ -f "$logfile" ]; then
+              BASENAME=$(basename "$logfile" .log)
+              az storage blob upload \
+                --account-name $AZURE_STORAGE_ACCOUNT \
+                --container-name logs \
+                --name "${BASENAME}_${TIMESTAMP}.log" \
+                --file "$logfile" \
+                --auth-mode key \
+                --account-key $AZURE_STORAGE_KEY
+              echo "Uploaded: $logfile"
+            fi
+          done
+
+      - name: Upload logs as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-logs
+          path: logs/
+          retention-days: 30
+
+      - name: Send Success Webhook
+        if: needs.agentic-pipeline.result == 'success'
+        continue-on-error: true
+        run: |
+          curl -X POST "${{ secrets.NOTIFICATION_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "text": "Vibe Agentic Pipeline Succeeded",
+              "attachments": [{
+                "color": "#00FF00",
+                "title": "Pipeline Success",
+                "title_link": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                "text": "The agentic data pipeline completed successfully.",
+                "fields": [
+                  {
+                    "title": "Retries Used",
+                    "value": "${{ needs.agentic-pipeline.outputs.retries_used || 0 }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Fixes Applied",
+                    "value": "${{ needs.agentic-pipeline.outputs.fixes_applied || 0 }}",
+                    "short": true
+                  }
+                ],
+                "footer": "Vibe Data Platform - Agentic"
+              }]
+            }' 2>/dev/null || echo "Webhook not configured"
+
+      - name: Send Failure Webhook
+        if: needs.agentic-pipeline.result == 'failure'
+        continue-on-error: true
+        run: |
+          curl -X POST "${{ secrets.NOTIFICATION_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "text": "Vibe Agentic Pipeline Failed (After Self-Healing Attempts)",
+              "attachments": [{
+                "color": "#FF0000",
+                "title": "Pipeline Failure - Agent Could Not Resolve",
+                "title_link": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                "text": "The agentic pipeline failed after exhausting self-healing attempts. Manual intervention required.",
+                "fields": [
+                  {
+                    "title": "Retries Attempted",
+                    "value": "${{ needs.agentic-pipeline.outputs.retries_used || 'N/A' }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Check Issue",
+                    "value": "See GitHub Issues",
+                    "short": true
+                  }
+                ],
+                "footer": "Vibe Data Platform - Agentic"
+              }]
+            }' 2>/dev/null || echo "Webhook not configured"
+
+      - name: Send Email via Logic App
+        if: needs.agentic-pipeline.result == 'failure'
+        continue-on-error: true
+        run: |
+          curl -X POST "${{ secrets.LOGIC_APP_EMAIL_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "subject": "Vibe Agentic Pipeline Failed - Manual Intervention Required",
+              "body": "The Vibe Data Platform agentic pipeline failed after self-healing attempts.\n\nRun ID: ${{ github.run_id }}\nTime: '"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'\n\nThe Claude agent attempted to diagnose and fix the issue but was unsuccessful. Please check the GitHub Issue created for detailed root cause analysis.\n\nView details: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "timestamp": "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'",
+              "run_id": "${{ github.run_id }}",
+              "repository": "${{ github.repository }}",
+              "severity": "high"
+            }' \
+            --fail-with-body 2>/dev/null || echo "Email notification not configured"

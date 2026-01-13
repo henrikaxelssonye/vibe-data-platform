@@ -2,10 +2,15 @@
 # Controls how the pipeline orchestrator handles errors
 
 execution:
-  # Mode: "autonomous" or "human-in-loop"
+  # Mode: "autonomous", "human-in-loop", or "autonomous-ci"
   # - autonomous: Agent auto-fixes errors and retries without user approval
   # - human-in-loop: Agent proposes fixes and waits for user approval
+  # - autonomous-ci: Full autonomous mode for CI/CD (higher risk tolerance)
   mode: human-in-loop
+
+  # Environment detection: auto-switch to autonomous-ci when running in GitHub Actions
+  # Set to false to always use the mode specified above
+  auto_detect_ci: true
 
 retry:
   # Maximum number of retry attempts after a failure
@@ -25,6 +30,30 @@ autonomous:
   # Create backup before applying fixes
   create_backups: true
 
+# CI-specific settings (used when mode is autonomous-ci or auto-detected)
+ci:
+  # Lower confidence threshold for CI (faster iteration)
+  min_confidence: 0.7
+
+  # Always create backups in CI
+  create_backups: true
+
+  # Create GitHub Issue on unrecoverable failure
+  create_issue_on_failure: true
+
+  # Issue labels for failures
+  failure_labels:
+    - pipeline-failure
+    - agent-unresolved
+    - needs-triage
+
+  # Commit fixes directly to branch (vs creating PR)
+  # Options: "direct", "pr", "none"
+  commit_strategy: none
+
+  # Maximum turns for the agent (cost control)
+  max_agent_turns: 50
+
 logging:
   # Log file paths (relative to project root)
   pipeline_runs: logs/pipeline_runs.log
@@ -33,3 +62,6 @@ logging:
 
   # Log format: "simple" or "json"
   format: simple
+
+  # Verbose logging in CI for debugging
+  ci_verbose: true
