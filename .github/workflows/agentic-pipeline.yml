@@ -159,8 +159,6 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: claude-sonnet-4-20250514
-          timeout_minutes: 30
 
           prompt: |
             You are the Pipeline Orchestrator for the Vibe Data Platform.
@@ -229,11 +227,8 @@ jobs:
             - If you create an issue, include detailed RCA and suggested manual fixes
             - Be thorough but efficient - minimize API costs
 
-          allowed_tools: |
-            Read,Write,Edit,Bash,Glob,Grep
-
           claude_args: |
-            --allowedTools "Read,Write,Edit,Bash(*),Glob,Grep"
+            --model claude-sonnet-4-20250514
             --max-turns 50
 
       - name: Calculate duration
