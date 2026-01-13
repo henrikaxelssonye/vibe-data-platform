@@ -1,0 +1,32 @@
+# Claude Code temporary files
+tmpclaude-*-cwd
+
+# Environment variables (secrets)
+.env
+.env.local
+!*.template.env
+
+# DuckDB database
+data/processed/*.duckdb
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+
+# Logs (keep structure, ignore content)
+logs/*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Backup files
+*.backup
+*.bak.*

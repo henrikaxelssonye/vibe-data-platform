@@ -1,0 +1,65 @@
+# GitHub Actions Configuration for Vibe Data Platform
+#
+# This file documents the workflow configuration.
+# Actual schedule is defined in .github/workflows/pipeline.yml
+
+# Schedule Configuration
+# Cron syntax: minute hour day month weekday
+schedule:
+  # Default: Daily at 6:00 AM UTC
+  default_cron: "0 6 * * *"
+
+  # Common schedule examples (uncomment in workflow file to use):
+  # Every 4 hours:        "0 */4 * * *"
+  # Every 6 hours:        "0 */6 * * *"
+  # Twice daily:          "0 6,18 * * *"
+  # Weekdays at 6 AM:     "0 6 * * 1-5"
+  # Weekly on Monday:     "0 6 * * 1"
+
+  # Note: GitHub Actions uses UTC timezone
+
+# Pipeline Configuration
+pipeline:
+  # Default dbt command
+  default_command: build
+
+  # Default target (matches dbt profiles.yml)
+  default_target: azure
+
+  # Timeout for the entire workflow (minutes)
+  timeout_minutes: 60
+
+# Retry Configuration
+retry:
+  # Number of automatic retries on failure
+  max_attempts: 1
+
+  # Wait time between retries (seconds)
+  delay_seconds: 60
+
+# Artifact Retention
+artifacts:
+  # Days to keep workflow artifacts (logs, etc.)
+  retention_days: 30
+
+# Environment Variables
+# These should be set as GitHub Secrets:
+#
+# Required:
+#   AZURE_STORAGE_ACCOUNT       - Storage account name
+#   AZURE_STORAGE_KEY           - Storage account access key
+#   AZURE_CREDENTIALS           - Service Principal JSON
+#
+# Optional (for notifications):
+#   LOGIC_APP_EMAIL_URL         - Logic App HTTP trigger URL
+#   NOTIFICATION_WEBHOOK_URL    - Teams/Slack webhook URL
+#
+# Repository Variables (Settings > Variables):
+#   NOTIFY_ON_SUCCESS           - Set to 'true' to notify on success
+
+# Manual Trigger Options
+# When triggering manually via workflow_dispatch:
+#
+# dbt_command: build | run | test | seed
+# dbt_select: Optional model selection (e.g., "orders_summary")
+# full_refresh: true | false

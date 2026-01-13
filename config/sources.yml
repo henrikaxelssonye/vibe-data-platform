@@ -1,0 +1,115 @@
+# Data Source Registry
+# Defines all data sources available to the platform
+
+# Storage mode: local, azure, or hybrid
+# - local: Use local filesystem only (default for development)
+# - azure: Use Azure Blob Storage only (for cloud/CI runs)
+# - hybrid: Read from Azure, write locally (for local dev with cloud data)
+storage_mode: local
+
+# Azure Blob Storage configuration
+azure:
+  enabled: false  # Set to true to enable Azure integration
+  storage_account_env: "AZURE_STORAGE_ACCOUNT"
+  storage_key_env: "AZURE_STORAGE_KEY"
+  connection_string_env: "AZURE_STORAGE_CONNECTION_STRING"
+
+  containers:
+    raw: raw           # Container for source data files
+    duckdb: duckdb     # Container for DuckDB database
+    logs: logs         # Container for pipeline logs
+
+  # Blob URL patterns (auto-generated from storage account)
+  # raw_url: https://{storage_account}.blob.core.windows.net/raw
+  # duckdb_url: https://{storage_account}.blob.core.windows.net/duckdb
+
+sources:
+  # Local file sources
+  files:
+    # CSV files in data/raw/
+    csv:
+      enabled: true
+      path: data/raw/           # Local path
+      azure_path: raw/          # Azure blob path (in raw container)
+      pattern: "*.csv"
+      options:
+        delimiter: ","
+        header: true
+        encoding: utf-8
+
+    # Parquet files in data/raw/
+    parquet:
+      enabled: true
+      path: data/raw/
+      azure_path: raw/
+      pattern: "*.parquet"
+
+    # JSON files
+    json:
+      enabled: true
+      path: data/raw/
+      azure_path: raw/
+      pattern: "*.json"
+
+  # API sources (for future expansion)
+  apis:
+    # Example API source configuration
+    example_api:
+      enabled: false
+      base_url: "https://api.example.com"
+      auth_type: bearer  # none, bearer, api_key, basic
+      auth_env_var: "EXAMPLE_API_TOKEN"
+      endpoints:
+        - name: users
+          path: /v1/users
+          method: GET
+          output_file: data/raw/api_users.json
+        - name: orders
+          path: /v1/orders
+          method: GET
+          output_file: data/raw/api_orders.json
+      rate_limit:
+        requests_per_minute: 60
+
+    # JSONPlaceholder (free test API)
+    jsonplaceholder:
+      enabled: true
+      base_url: "https://jsonplaceholder.typicode.com"
+      auth_type: none
+      endpoints:
+        - name: posts
+          path: /posts
+          method: GET
+          output_file: data/raw/api_posts.json
+        - name: users
+          path: /users
+          method: GET
+          output_file: data/raw/api_users.json
+
+  # Database sources (for future expansion)
+  databases:
+    # Example external database
+    example_postgres:
+      enabled: false
+      type: postgres
+      host_env_var: "PG_HOST"
+      port: 5432
+      database_env_var: "PG_DATABASE"
+      user_env_var: "PG_USER"
+      password_env_var: "PG_PASSWORD"
+
+# Ingestion settings
+ingestion:
+  # Default behavior for new files
+  on_new_file: notify  # notify, auto_ingest, ignore
+
+  # File watching (future feature)
+  watch:
+    enabled: false
+    interval_seconds: 60
+
+  # Data quality checks on ingestion
+  quality_checks:
+    check_empty_files: true
+    check_schema_changes: true
+    min_row_count: 1

@@ -1,0 +1,35 @@
+# Pipeline Execution Configuration
+# Controls how the pipeline orchestrator handles errors
+
+execution:
+  # Mode: "autonomous" or "human-in-loop"
+  # - autonomous: Agent auto-fixes errors and retries without user approval
+  # - human-in-loop: Agent proposes fixes and waits for user approval
+  mode: human-in-loop
+
+retry:
+  # Maximum number of retry attempts after a failure
+  max_retries: 3
+
+  # Base delay in seconds between retries (exponential backoff applied)
+  base_delay_seconds: 5
+
+  # Backoff multiplier (delay = base * multiplier^attempt)
+  backoff_multiplier: 2
+
+autonomous:
+  # Minimum confidence score (0-1) required to auto-apply a fix
+  # Fixes below this threshold fall back to human-in-loop
+  min_confidence: 0.8
+
+  # Create backup before applying fixes
+  create_backups: true
+
+logging:
+  # Log file paths (relative to project root)
+  pipeline_runs: logs/pipeline_runs.log
+  errors: logs/errors.log
+  fixes: logs/fixes.log
+
+  # Log format: "simple" or "json"
+  format: simple

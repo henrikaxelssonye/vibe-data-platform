@@ -1,0 +1,6 @@
+customer_id,customer_name,email,city,country,created_at
+101,Alice Johnson,alice@example.com,Stockholm,Sweden,2023-06-15
+102,Bob Smith,bob@example.com,Gothenburg,Sweden,2023-07-20
+103,Carol Williams,carol@example.com,Malmo,Sweden,2023-08-10
+104,David Brown,david@example.com,Uppsala,Sweden,2023-09-05
+105,Eva Martinez,eva@example.com,Oslo,Norway,2023-10-12

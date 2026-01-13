@@ -1,0 +1,29 @@
+# dbt profiles for Vibe Data Platform
+# See: https://docs.getdbt.com/docs/core/connect-data-platform/duckdb-setup
+
+vibe_duckdb:
+  target: dev  # Default target for local development
+
+  outputs:
+    # Local development target
+    # Uses local DuckDB file, no cloud connectivity
+    dev:
+      type: duckdb
+      path: '../data/processed/vibe.duckdb'
+      threads: 4
+
+    # Azure target for cloud/CI execution
+    # Uses httpfs extension to read from Azure Blob Storage
+    # DuckDB file is synced to/from Azure before/after runs
+    azure:
+      type: duckdb
+      path: '../data/processed/vibe.duckdb'
+      threads: 4
+      extensions:
+        - httpfs
+        - azure
+      # Azure credentials are loaded via environment variables
+      # AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_ACCOUNT + AZURE_STORAGE_KEY
+      settings:
+        # These are set by the azure_httpfs macro at runtime
+        # azure_storage_connection_string: "{{ env_var('AZURE_STORAGE_CONNECTION_STRING') }}"

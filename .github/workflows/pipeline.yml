@@ -1,0 +1,324 @@
+# Vibe Data Platform - Scheduled Pipeline Workflow
+#
+# This workflow runs the dbt pipeline on a schedule, syncing data with Azure Blob Storage.
+# On failure, it notifies via GitHub Issues, Email (Logic App), and Webhook (Teams/Slack).
+#
+# Required GitHub Secrets:
+#   AZURE_STORAGE_ACCOUNT     - Azure Storage account name
+#   AZURE_STORAGE_KEY         - Azure Storage account access key
+#   AZURE_CREDENTIALS         - Service Principal JSON for Azure login
+#   LOGIC_APP_EMAIL_URL       - Logic App HTTP trigger URL for email
+#   NOTIFICATION_WEBHOOK_URL  - Teams or Slack webhook URL
+
+name: Vibe Data Pipeline
+
+on:
+  # Scheduled runs - default: daily at 6:00 AM UTC
+  schedule:
+    - cron: '0 6 * * *'
+
+  # Manual trigger with optional parameters
+  workflow_dispatch:
+    inputs:
+      dbt_command:
+        description: 'dbt command to run'
+        required: false
+        default: 'build'
+        type: choice
+        options:
+          - build
+          - run
+          - test
+          - seed
+      dbt_select:
+        description: 'Model selection (optional)'
+        required: false
+        default: ''
+      full_refresh:
+        description: 'Run with --full-refresh'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+  AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
+  AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+  DBT_PROFILES_DIR: ./dbt
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # Main pipeline job
+  run-pipeline:
+    name: Run dbt Pipeline
+    runs-on: ubuntu-latest
+
+    outputs:
+      pipeline_status: ${{ steps.dbt.outcome }}
+      run_duration: ${{ steps.duration.outputs.duration }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install dbt-duckdb pyyaml requests azure-storage-blob
+
+      - name: Azure CLI Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Download DuckDB from Azure
+        run: |
+          mkdir -p data/processed
+          az storage blob download \
+            --account-name $AZURE_STORAGE_ACCOUNT \
+            --container-name duckdb \
+            --name vibe.duckdb \
+            --file data/processed/vibe.duckdb \
+            --auth-mode key \
+            --account-key $AZURE_STORAGE_KEY \
+            2>/dev/null || echo "No existing database found, starting fresh"
+
+      - name: Record start time
+        id: start
+        run: echo "time=$(date +%s)" >> $GITHUB_OUTPUT
+
+      - name: Run dbt pipeline
+        id: dbt
+        run: |
+          cd dbt
+
+          # Install dbt packages if deps exist
+          if [ -f "packages.yml" ]; then
+            dbt deps
+          fi
+
+          # Build dbt command
+          DBT_CMD="${{ inputs.dbt_command || 'build' }}"
+          DBT_ARGS="--target azure"
+
+          if [ -n "${{ inputs.dbt_select }}" ]; then
+            DBT_ARGS="$DBT_ARGS --select ${{ inputs.dbt_select }}"
+          fi
+
+          if [ "${{ inputs.full_refresh }}" == "true" ]; then
+            DBT_ARGS="$DBT_ARGS --full-refresh"
+          fi
+
+          echo "Running: dbt $DBT_CMD $DBT_ARGS"
+          dbt $DBT_CMD $DBT_ARGS 2>&1 | tee ../logs/pipeline_output.log
+
+          # Capture exit code
+          DBT_EXIT=${PIPESTATUS[0]}
+          echo "dbt_exit_code=$DBT_EXIT" >> $GITHUB_OUTPUT
+          exit $DBT_EXIT
+        continue-on-error: true
+
+      - name: Calculate duration
+        id: duration
+        if: always()
+        run: |
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - ${{ steps.start.outputs.time }}))
+          echo "duration=${DURATION}s" >> $GITHUB_OUTPUT
+
+      - name: Upload DuckDB to Azure
+        if: always()
+        run: |
+          if [ -f "data/processed/vibe.duckdb" ]; then
+            az storage blob upload \
+              --account-name $AZURE_STORAGE_ACCOUNT \
+              --container-name duckdb \
+              --name vibe.duckdb \
+              --file data/processed/vibe.duckdb \
+              --overwrite \
+              --auth-mode key \
+              --account-key $AZURE_STORAGE_KEY
+            echo "DuckDB uploaded to Azure"
+          else
+            echo "No DuckDB file to upload"
+          fi
+
+      - name: Upload logs to Azure
+        if: always()
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+          # Create logs directory if needed
+          mkdir -p logs
+
+          # Upload pipeline log
+          if [ -f "logs/pipeline_output.log" ]; then
+            az storage blob upload \
+              --account-name $AZURE_STORAGE_ACCOUNT \
+              --container-name logs \
+              --name "pipeline_${TIMESTAMP}.log" \
+              --file logs/pipeline_output.log \
+              --auth-mode key \
+              --account-key $AZURE_STORAGE_KEY
+            echo "Logs uploaded to Azure"
+          fi
+
+      - name: Upload logs as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-logs
+          path: logs/
+          retention-days: 30
+
+      - name: Check pipeline result
+        if: steps.dbt.outcome == 'failure'
+        run: |
+          echo "Pipeline failed!"
+          exit 1
+
+  # Notification job on failure
+  notify-on-failure:
+    name: Send Failure Notifications
+    needs: run-pipeline
+    if: failure()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create GitHub Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const date = new Date().toISOString().split('T')[0];
+            const time = new Date().toISOString();
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Pipeline Failure - ${date}`,
+              body: `## Pipeline Failure Report
+
+            **Run ID:** [${{ github.run_id }}](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            **Triggered by:** ${{ github.event_name }}
+            **Time:** ${time}
+            **Duration:** ${{ needs.run-pipeline.outputs.run_duration || 'N/A' }}
+
+            ### Details
+
+            The scheduled data pipeline failed. Please investigate and fix the issue.
+
+            ### Logs
+
+            - [View workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - Download logs from the workflow artifacts
+
+            ### Next Steps
+
+            1. Review the logs above
+            2. Fix the issue in the dbt models
+            3. Re-run the workflow or wait for next scheduled run
+
+            ---
+            *This issue was automatically created by the pipeline workflow.*
+            `,
+              labels: ['pipeline-failure', 'automated', 'needs-triage']
+            });
+
+            console.log('GitHub Issue created successfully');
+
+      - name: Send Email via Logic App
+        if: ${{ secrets.LOGIC_APP_EMAIL_URL != '' }}
+        continue-on-error: true
+        run: |
+          curl -X POST "${{ secrets.LOGIC_APP_EMAIL_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "subject": "Vibe Data Pipeline Failed - ${{ github.run_id }}",
+              "body": "The Vibe Data Platform pipeline failed.\n\nRun ID: ${{ github.run_id }}\nTime: '"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'\nDuration: ${{ needs.run-pipeline.outputs.run_duration }}\n\nView details: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "timestamp": "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'",
+              "run_id": "${{ github.run_id }}",
+              "repository": "${{ github.repository }}"
+            }' \
+            --fail-with-body || echo "Email notification failed (Logic App may not be configured)"
+
+      - name: Send Webhook Notification (Teams/Slack)
+        if: ${{ secrets.NOTIFICATION_WEBHOOK_URL != '' }}
+        continue-on-error: true
+        run: |
+          # Adaptive Card format works for both Teams and Slack
+          curl -X POST "${{ secrets.NOTIFICATION_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "text": "Vibe Data Pipeline Failed",
+              "attachments": [{
+                "color": "#FF0000",
+                "title": "Pipeline Failure Alert",
+                "title_link": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                "text": "The scheduled data pipeline has failed.",
+                "fields": [
+                  {
+                    "title": "Repository",
+                    "value": "${{ github.repository }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Run ID",
+                    "value": "${{ github.run_id }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Duration",
+                    "value": "${{ needs.run-pipeline.outputs.run_duration }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Triggered By",
+                    "value": "${{ github.event_name }}",
+                    "short": true
+                  }
+                ],
+                "footer": "Vibe Data Platform",
+                "ts": '"$(date +%s)"'
+              }]
+            }' \
+            --fail-with-body || echo "Webhook notification failed"
+
+  # Optional: Success notification
+  notify-on-success:
+    name: Send Success Notification
+    needs: run-pipeline
+    if: success() && vars.NOTIFY_ON_SUCCESS == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Success Webhook
+        if: ${{ secrets.NOTIFICATION_WEBHOOK_URL != '' }}
+        continue-on-error: true
+        run: |
+          curl -X POST "${{ secrets.NOTIFICATION_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "text": "Vibe Data Pipeline Succeeded",
+              "attachments": [{
+                "color": "#00FF00",
+                "title": "Pipeline Success",
+                "title_link": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                "text": "The scheduled data pipeline completed successfully.",
+                "fields": [
+                  {
+                    "title": "Duration",
+                    "value": "${{ needs.run-pipeline.outputs.run_duration }}",
+                    "short": true
+                  }
+                ],
+                "footer": "Vibe Data Platform"
+              }]
+            }'

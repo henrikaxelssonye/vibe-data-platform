@@ -1,0 +1,62 @@
+version: 2
+
+sources:
+  - name: raw
+    description: "Raw data ingested from files and APIs"
+    schema: main
+    tables:
+      - name: raw_customers
+        description: "Customer data from customers.csv"
+        columns:
+          - name: customer_id
+            description: "Unique customer identifier"
+          - name: customer_name
+            description: "Customer full name"
+          - name: email
+            description: "Customer email address"
+          - name: city
+            description: "Customer city"
+          - name: country
+            description: "Customer country"
+          - name: created_at
+            description: "Account creation date"
+
+      - name: raw_products
+        description: "Product catalog from products.csv"
+        columns:
+          - name: product_id
+            description: "Unique product identifier"
+          - name: product_name
+            description: "Product name"
+          - name: category
+            description: "Product category"
+          - name: unit_price
+            description: "Selling price"
+          - name: cost_price
+            description: "Cost price"
+          - name: supplier
+            description: "Supplier name"
+
+      - name: raw_api_posts
+        description: "Blog posts from JSONPlaceholder API"
+        columns:
+          - name: id
+            description: "Post ID"
+          - name: userId
+            description: "Author user ID"
+          - name: title
+            description: "Post title"
+          - name: body
+            description: "Post content"
+
+      - name: raw_api_users
+        description: "Users from JSONPlaceholder API"
+        columns:
+          - name: id
+            description: "User ID"
+          - name: name
+            description: "User full name"
+          - name: email
+            description: "User email"
+          - name: username
+            description: "Username"

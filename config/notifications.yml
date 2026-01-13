@@ -1,0 +1,82 @@
+# Notification Configuration for Vibe Data Platform
+#
+# Defines how pipeline status notifications are delivered.
+# Actual implementation is in .github/workflows/pipeline.yml
+
+notifications:
+  # GitHub Issues - auto-created on pipeline failure
+  github_issues:
+    enabled: true
+    labels:
+      - pipeline-failure
+      - automated
+      - needs-triage
+    # Optionally auto-assign users (GitHub usernames)
+    assignees: []
+
+  # Email via Azure Logic App
+  email:
+    enabled: true
+    # Logic App webhook URL stored in GitHub Secret: LOGIC_APP_EMAIL_URL
+    # Recipients are configured in the Logic App itself
+    #
+    # Setup instructions:
+    # 1. Run ./azure/setup-logic-app.sh
+    # 2. Configure email connector in Azure Portal
+    # 3. Add LOGIC_APP_EMAIL_URL to GitHub Secrets
+
+  # Teams/Slack Webhook
+  webhook:
+    enabled: true
+    # Webhook URL stored in GitHub Secret: NOTIFICATION_WEBHOOK_URL
+    #
+    # For Microsoft Teams:
+    #   1. Go to Teams channel > Connectors > Incoming Webhook
+    #   2. Configure webhook and copy URL
+    #   3. Add to GitHub Secrets as NOTIFICATION_WEBHOOK_URL
+    #
+    # For Slack:
+    #   1. Go to api.slack.com > Your Apps > Incoming Webhooks
+    #   2. Add webhook to workspace and select channel
+    #   3. Copy webhook URL to GitHub Secrets
+    #
+    # Message format is compatible with both Teams and Slack
+
+# Trigger Configuration
+triggers:
+  # Always notify on failure
+  on_failure: true
+
+  # Notify on success (set via GitHub repository variable)
+  # To enable: Settings > Variables > New variable > NOTIFY_ON_SUCCESS = true
+  on_success: false
+
+  # Future: Notify on warnings (test failures that don't fail build)
+  on_warning: false
+
+# Message Templates
+# These are embedded in the workflow file, shown here for reference
+templates:
+  failure:
+    github_issue_title: "Pipeline Failure - {date}"
+    email_subject: "Vibe Data Pipeline Failed - {run_id}"
+    webhook_title: "Pipeline Failure Alert"
+    webhook_color: "#FF0000"  # Red
+
+  success:
+    webhook_title: "Pipeline Success"
+    webhook_color: "#00FF00"  # Green
+
+# Severity Levels (for future enhancement)
+severity:
+  critical:
+    # All models failed
+    channels: [github_issues, email, webhook]
+
+  warning:
+    # Some tests failed but models succeeded
+    channels: [github_issues, webhook]
+
+  info:
+    # Success notifications
+    channels: [webhook]
