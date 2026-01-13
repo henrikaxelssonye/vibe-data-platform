@@ -12,6 +12,10 @@
 
 name: Vibe Data Pipeline
 
+permissions:
+  contents: read
+  issues: write
+
 on:
   # Scheduled runs - default: daily at 6:00 AM UTC
   schedule:
@@ -65,7 +69,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
 
       - name: Install dependencies
         run: |
