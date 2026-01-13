@@ -227,6 +227,7 @@ jobs:
             - If you create an issue, include detailed RCA and suggested manual fixes
             - Be thorough but efficient - minimize API costs
 
+          show_full_output: true
           claude_args: |
             --model claude-sonnet-4-20250514
             --max-turns 50
