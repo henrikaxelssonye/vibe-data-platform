@@ -158,7 +158,8 @@ jobs:
         id: orchestrator
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Using OAuth token for Claude Pro/Max subscribers (no API credits needed)
+          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
           prompt: |
             You are the Pipeline Orchestrator for the Vibe Data Platform.
