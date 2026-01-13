@@ -74,11 +74,6 @@ jobs:
         run: |
           pip install dbt-duckdb pyyaml requests azure-storage-blob
 
-      - name: Azure CLI Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
       - name: Download DuckDB from Azure
         run: |
           mkdir -p data/processed
