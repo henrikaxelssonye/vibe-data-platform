@@ -235,7 +235,6 @@ jobs:
             console.log('GitHub Issue created successfully');
 
       - name: Send Email via Logic App
-        if: ${{ secrets.LOGIC_APP_EMAIL_URL != '' }}
         continue-on-error: true
         run: |
           curl -X POST "${{ secrets.LOGIC_APP_EMAIL_URL }}" \
@@ -250,7 +249,6 @@ jobs:
             --fail-with-body || echo "Email notification failed (Logic App may not be configured)"
 
       - name: Send Webhook Notification (Teams/Slack)
-        if: ${{ secrets.NOTIFICATION_WEBHOOK_URL != '' }}
         continue-on-error: true
         run: |
           # Adaptive Card format works for both Teams and Slack
@@ -300,7 +298,6 @@ jobs:
 
     steps:
       - name: Send Success Webhook
-        if: ${{ secrets.NOTIFICATION_WEBHOOK_URL != '' }}
         continue-on-error: true
         run: |
           curl -X POST "${{ secrets.NOTIFICATION_WEBHOOK_URL }}" \
