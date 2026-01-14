@@ -192,9 +192,9 @@ jobs:
             ## Execution Steps
 
             1. **Read configuration**: Check `config/execution_mode.yml` - use autonomous mode for CI
-            2. **Run the pipeline**:
+            2. **Run the pipeline** (use dev target for simplicity):
                ```bash
-               cd dbt && dbt ${{ inputs.dbt_command || 'build' }} --target azure ${{ inputs.dbt_select && format('--select {0}', inputs.dbt_select) || '' }} ${{ inputs.full_refresh == 'true' && '--full-refresh' || '' }}
+               cd dbt && dbt ${{ inputs.dbt_command || 'build' }} ${{ inputs.dbt_select && format('--select {0}', inputs.dbt_select) || '' }} ${{ inputs.full_refresh == 'true' && '--full-refresh' || '' }}
                ```
             3. **If successful**: Run `/validate` and report success
             4. **If failed**:
@@ -226,12 +226,13 @@ jobs:
             - Always create backups before modifying files
             - Log all actions to logs/pipeline_runs.log
             - If you create an issue, include detailed RCA and suggested manual fixes
-            - Be thorough but efficient - minimize API costs
+            - BE EFFICIENT: Run `cd dbt && dbt build` directly, don't spend turns on debugging if it works
+            - If dbt fails, diagnose once then fix - don't try multiple debugging approaches
 
           show_full_output: true
           claude_args: |
             --model claude-sonnet-4-20250514
-            --max-turns 50
+            --max-turns 100
 
       - name: Calculate duration
         id: duration
