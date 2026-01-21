@@ -1,35 +1,32 @@
 # Vibe Data Platform - Agentic Pipeline Workflow
 #
-# This workflow uses Claude Code Action to run the dbt pipeline with intelligent
-# self-healing capabilities. On failure, Claude diagnoses errors, applies fixes,
-# and retries automatically (up to 3 times).
-#
-# Architecture:
-#   1. Setup: Download DuckDB from Azure, install dependencies
-#   2. Agent: Claude acts as pipeline-orchestrator with /run-pipeline, /diagnose, /apply-fix
-#   3. Finalize: Upload DuckDB and logs to Azure, send notifications
+# This workflow gives Claude full developer control over the pipeline.
+# Claude acts as an autonomous developer who can:
+#   - Run dbt commands
+#   - Diagnose and fix errors
+#   - Commit fixes to the repository
+#   - Create GitHub Issues for unresolvable problems
+#   - Retry until success or max attempts reached
 #
 # Required GitHub Secrets:
-#   ANTHROPIC_API_KEY         - Anthropic API key for Claude
+#   CLAUDE_CODE_OAUTH_TOKEN   - OAuth token for Claude Code Action
 #   AZURE_STORAGE_ACCOUNT     - Azure Storage account name
 #   AZURE_STORAGE_KEY         - Azure Storage account access key
-#   LOGIC_APP_EMAIL_URL       - Logic App HTTP trigger URL for email (optional)
+#   LOGIC_APP_EMAIL_URL       - Logic App HTTP trigger URL (optional)
 #   NOTIFICATION_WEBHOOK_URL  - Teams or Slack webhook URL (optional)
 
 name: Agentic Data Pipeline
 
 permissions:
-  contents: write      # Claude may commit fixes
-  pull-requests: write # Claude may create PRs for fixes
-  issues: write        # Claude creates issues for unrecoverable failures
-  id-token: write      # Required for claude-code-action
+  contents: write       # Commit fixes directly
+  pull-requests: write  # Create PRs if preferred
+  issues: write         # Create issues for unresolvable failures
+  id-token: write       # Required for claude-code-action
 
 on:
-  # Scheduled runs - default: daily at 6:00 AM UTC
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '0 6 * * *'  # Daily at 6:00 AM UTC
 
-  # Manual trigger with optional parameters
   workflow_dispatch:
     inputs:
       dbt_command:
@@ -65,38 +62,45 @@ on:
 env:
   AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
   AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
-  PYTHON_VERSION: '3.11'
 
 jobs:
   # =============================================================================
-  # Job 1: Setup - Prepare environment and download data
+  # Main Job: Claude acts as autonomous developer
   # =============================================================================
-  setup:
-    name: Setup Environment
+  agentic-pipeline:
+    name: Claude Developer Agent
     runs-on: ubuntu-latest
-    outputs:
-      has_database: ${{ steps.download.outputs.has_database }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # Full history for proper git operations
+
+      - name: Configure Git
+        run: |
+          git config user.name "Claude Agent"
+          git config user.email "claude-agent@${{ github.repository_owner }}.github.io"
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            **/requirements*.txt
+            dbt/packages.yml
 
       - name: Install dependencies
         run: |
           pip install dbt-duckdb pyyaml requests azure-storage-blob
 
-      - name: Create directories
+      - name: Setup directories
         run: |
-          mkdir -p data/processed
-          mkdir -p logs
+          mkdir -p data/processed data/raw logs
 
       - name: Download DuckDB from Azure
-        id: download
         run: |
           az storage blob download \
             --account-name $AZURE_STORAGE_ACCOUNT \
@@ -105,221 +109,147 @@ jobs:
             --file data/processed/vibe.duckdb \
             --auth-mode key \
             --account-key $AZURE_STORAGE_KEY \
-            2>/dev/null && echo "has_database=true" >> $GITHUB_OUTPUT || {
-              echo "No existing database found, starting fresh"
-              echo "has_database=false" >> $GITHUB_OUTPUT
-            }
+            2>/dev/null || echo "No existing database, starting fresh"
 
-      - name: Upload workspace
-        uses: actions/upload-artifact@v4
-        with:
-          name: workspace
-          path: |
-            data/
-            logs/
-          retention-days: 1
-
-  # =============================================================================
-  # Job 2: Agentic Pipeline - Claude runs and self-heals the pipeline
-  # =============================================================================
-  agentic-pipeline:
-    name: Claude Pipeline Orchestrator
-    needs: setup
-    runs-on: ubuntu-latest
-    outputs:
-      pipeline_status: ${{ steps.final_status.outputs.pipeline_status }}
-      retries_used: ${{ steps.final_status.outputs.retries_used }}
-      fixes_applied: ${{ steps.orchestrator.outputs.fixes_applied }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
+      - name: Download raw data from Azure
         run: |
-          pip install dbt-duckdb pyyaml requests azure-storage-blob
+          az storage blob download-batch \
+            --account-name $AZURE_STORAGE_ACCOUNT \
+            --source raw \
+            --destination data/raw \
+            --auth-mode key \
+            --account-key $AZURE_STORAGE_KEY \
+            2>/dev/null || echo "No raw data in Azure or download failed"
 
-      - name: Download workspace
-        uses: actions/download-artifact@v4
-        with:
-          name: workspace
-          path: .
-
-      - name: Record start time
-        id: start
-        run: |
-          echo "time=$(date +%s)" >> $GITHUB_OUTPUT
-          mkdir -p logs
-
-      # Run dbt directly first - faster and no permission issues
-      - name: Run dbt pipeline
-        id: dbt_run
-        continue-on-error: true
-        run: |
-          cd dbt
-
-          # Install dbt packages if deps exist
-          if [ -f "packages.yml" ]; then
-            dbt deps
-          fi
-
-          # Build dbt command
-          DBT_CMD="${{ inputs.dbt_command || 'build' }}"
-          DBT_ARGS=""
-
-          if [ -n "${{ inputs.dbt_select }}" ]; then
-            DBT_ARGS="$DBT_ARGS --select ${{ inputs.dbt_select }}"
-          fi
-
-          if [ "${{ inputs.full_refresh }}" == "true" ]; then
-            DBT_ARGS="$DBT_ARGS --full-refresh"
-          fi
-
-          echo "Running: dbt $DBT_CMD $DBT_ARGS"
-          dbt $DBT_CMD $DBT_ARGS 2>&1 | tee ../logs/dbt_output.log
-
-          # Capture exit code
-          DBT_EXIT=${PIPESTATUS[0]}
-          echo "dbt_exit_code=$DBT_EXIT" >> $GITHUB_OUTPUT
-
-          if [ $DBT_EXIT -eq 0 ]; then
-            echo "pipeline_status=success" >> $GITHUB_OUTPUT
-          else
-            echo "pipeline_status=failure" >> $GITHUB_OUTPUT
-          fi
-
-          exit $DBT_EXIT
-
-      # Only invoke Claude if dbt failed - for diagnosis and self-healing
-      - name: Claude Self-Healing Agent
-        id: orchestrator
-        if: steps.dbt_run.outcome == 'failure'
+      # =========================================================================
+      # Claude Developer Agent - Full autonomy to run, fix, commit, and report
+      # =========================================================================
+      - name: Claude Developer Agent
+        id: claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
           prompt: |
-            ## dbt Pipeline Failed - Diagnose and Fix
+            # You are a Developer on the Vibe Data Platform
 
-            The dbt pipeline just failed. Your job is to diagnose the error and fix it.
+            You have full autonomy to run the data pipeline, fix any issues, commit your changes, and report results. Act like an experienced data engineer.
 
-            **Error Output:** Check `logs/dbt_output.log` for the error details.
+            ## Your Mission
 
-            ## Your Task
+            Run the dbt pipeline and ensure it succeeds. If it fails, diagnose the problem, fix it, and retry. You have up to **${{ inputs.max_retries || '3' }} attempts**.
 
-            1. Read `logs/dbt_output.log` to understand the error
-            2. Use `/diagnose` skill to analyze the root cause
-            3. Use `/apply-fix --auto` to apply the fix (CI autonomous mode)
-            4. Report what you fixed
+            ## Pipeline Command
+
+            ```bash
+            cd dbt && dbt ${{ inputs.dbt_command || 'build' }}${{ inputs.dbt_select && format(' --select {0}', inputs.dbt_select) || '' }}${{ inputs.full_refresh == 'true' && ' --full-refresh' || '' }}
+            ```
+
+            ## Your Capabilities
+
+            You can do everything a developer would do:
+
+            1. **Run commands** - Execute dbt, python scripts, any CLI tools
+            2. **Read and edit files** - Examine models, fix SQL, update configs
+            3. **Commit changes** - Use `git add`, `git commit`, `git push` to save fixes
+            4. **Create GitHub Issues** - Use `gh issue create` for problems you can't solve
+            5. **Use project skills** - `/diagnose`, `/apply-fix`, `/validate` are available
+
+            ## Workflow
+
+            1. **Run the pipeline** - Execute the dbt command
+            2. **If success** - Report success and exit
+            3. **If failure**:
+               - Analyze the error output
+               - Use `/diagnose` to understand root cause
+               - Fix the issue (edit SQL, configs, etc.)
+               - Create a backup before modifying files
+               - Commit your fix with a descriptive message
+               - Retry the pipeline
+               - Repeat until success or max attempts exhausted
+
+            ## Git Commit Guidelines
+
+            When committing fixes:
+            ```bash
+            git add -A
+            git commit -m "fix(dbt): <brief description>
+
+            - Root cause: <what was wrong>
+            - Fix applied: <what you changed>
+
+            Co-Authored-By: Claude <noreply@anthropic.com>"
+            git push origin ${{ github.ref_name }}
+            ```
+
+            ## If You Cannot Fix It
+
+            After exhausting all attempts, create a detailed GitHub Issue:
+
+            ```bash
+            gh issue create \
+              --title "Pipeline Failure: <brief description>" \
+              --label "bug,pipeline,needs-triage" \
+              --body "## Pipeline Failure Report
+
+            **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            **Branch:** ${{ github.ref_name }}
+            **Time:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+            ## Error Summary
+            <describe the error>
+
+            ## Root Cause Analysis
+            <your diagnosis>
+
+            ## Attempted Fixes
+            <what you tried>
+
+            ## Recommended Manual Steps
+            <what a human should do>
+
+            ## Relevant Files
+            - <list files involved>
+            "
+            ```
+
+            ## Important Rules
+
+            - **Be efficient** - Don't over-analyze, fix and move on
+            - **Commit each fix** - Don't batch multiple unrelated fixes
+            - **Preserve data** - Never delete production data
+            - **Log everything** - Your output is the audit trail
+            - **Confidence threshold** - Apply fixes you're >= 70% confident about
+            - **Ask for help** - Create an issue rather than making risky changes
 
             ## Context
 
             - Repository: ${{ github.repository }}
-            - dbt Command: ${{ inputs.dbt_command || 'build' }}
-            - Retry attempt: 1 of ${{ inputs.max_retries || '3' }}
+            - Branch: ${{ github.ref_name }}
+            - Trigger: ${{ github.event_name }}
+            - Run ID: ${{ github.run_id }}
 
-            ## Important
+            Now, run the pipeline and handle whatever comes up. Good luck!
 
-            - You are in CI autonomous mode - apply fixes with confidence >= 0.7 automatically
-            - Create backups before modifying files
-            - Be efficient - diagnose once, fix once, report results
-            - If you cannot fix it, explain why and suggest manual steps
+          allowed_tools: |
+            Bash
+            Edit
+            Read
+            Write
+            Glob
+            Grep
+            WebFetch
+            WebSearch
+            TodoWrite
+            mcp__plugin_fabric-cli-plugin_microsoft-learn__microsoft_docs_search
+            mcp__plugin_fabric-cli-plugin_microsoft-learn__microsoft_docs_fetch
 
-          show_full_output: true
           claude_args: |
-            --model claude-sonnet-4-20250514
-            --max-turns 50
+            --max-turns 75
 
-      # Retry dbt after Claude's fix
-      - name: Retry dbt after fix
-        id: dbt_retry
-        if: steps.dbt_run.outcome == 'failure' && steps.orchestrator.outcome == 'success'
-        continue-on-error: true
-        run: |
-          cd dbt
-          DBT_CMD="${{ inputs.dbt_command || 'build' }}"
-          DBT_ARGS=""
-
-          if [ -n "${{ inputs.dbt_select }}" ]; then
-            DBT_ARGS="$DBT_ARGS --select ${{ inputs.dbt_select }}"
-          fi
-
-          echo "Retrying: dbt $DBT_CMD $DBT_ARGS"
-          dbt $DBT_CMD $DBT_ARGS 2>&1 | tee ../logs/dbt_retry_output.log
-
-          DBT_EXIT=${PIPESTATUS[0]}
-          echo "dbt_exit_code=$DBT_EXIT" >> $GITHUB_OUTPUT
-
-          if [ $DBT_EXIT -eq 0 ]; then
-            echo "pipeline_status=success" >> $GITHUB_OUTPUT
-            echo "Pipeline succeeded after Claude fix!"
-          else
-            echo "pipeline_status=failure" >> $GITHUB_OUTPUT
-            echo "Pipeline still failing after fix attempt"
-          fi
-
-          exit $DBT_EXIT
-
-      # Set final status
-      - name: Set final status
-        id: final_status
-        if: always()
-        run: |
-          if [ "${{ steps.dbt_run.outcome }}" == "success" ]; then
-            echo "pipeline_status=success" >> $GITHUB_OUTPUT
-            echo "retries_used=0" >> $GITHUB_OUTPUT
-          elif [ "${{ steps.dbt_retry.outcome }}" == "success" ]; then
-            echo "pipeline_status=success" >> $GITHUB_OUTPUT
-            echo "retries_used=1" >> $GITHUB_OUTPUT
-          else
-            echo "pipeline_status=failure" >> $GITHUB_OUTPUT
-            echo "retries_used=1" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Calculate duration
-        id: duration
-        if: always()
-        run: |
-          END_TIME=$(date +%s)
-          DURATION=$((END_TIME - ${{ steps.start.outputs.time }}))
-          echo "duration=${DURATION}s" >> $GITHUB_OUTPUT
-
-      - name: Save workspace
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: workspace-after-agent
-          path: |
-            data/
-            logs/
-            dbt/
-          retention-days: 1
-
-  # =============================================================================
-  # Job 3: Finalize - Upload results and send notifications
-  # =============================================================================
-  finalize:
-    name: Upload & Notify
-    needs: [setup, agentic-pipeline]
-    if: always()
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download workspace
-        uses: actions/download-artifact@v4
-        with:
-          name: workspace-after-agent
-          path: .
-        continue-on-error: true
-
+      # =========================================================================
+      # Post-Agent: Upload results regardless of outcome
+      # =========================================================================
       - name: Upload DuckDB to Azure
         if: always()
         run: |
@@ -333,16 +263,12 @@ jobs:
               --auth-mode key \
               --account-key $AZURE_STORAGE_KEY
             echo "DuckDB uploaded to Azure"
-          else
-            echo "No DuckDB file to upload"
           fi
 
       - name: Upload logs to Azure
         if: always()
         run: |
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-
-          # Upload all log files
           for logfile in logs/*.log; do
             if [ -f "$logfile" ]; then
               BASENAME=$(basename "$logfile" .log)
@@ -352,89 +278,63 @@ jobs:
                 --name "${BASENAME}_${TIMESTAMP}.log" \
                 --file "$logfile" \
                 --auth-mode key \
-                --account-key $AZURE_STORAGE_KEY
-              echo "Uploaded: $logfile"
+                --account-key $AZURE_STORAGE_KEY 2>/dev/null || true
             fi
           done
 
-      - name: Upload logs as artifact
+      - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pipeline-logs
-          path: logs/
+          name: pipeline-results
+          path: |
+            logs/
+            data/processed/*.duckdb
           retention-days: 30
 
-      - name: Send Success Webhook
-        if: needs.agentic-pipeline.result == 'success'
-        continue-on-error: true
+      # =========================================================================
+      # Notifications
+      # =========================================================================
+      - name: Notify Success
+        if: success()
         run: |
-          curl -X POST "${{ secrets.NOTIFICATION_WEBHOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "text": "Vibe Agentic Pipeline Succeeded",
-              "attachments": [{
-                "color": "#00FF00",
-                "title": "Pipeline Success",
-                "title_link": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-                "text": "The agentic data pipeline completed successfully.",
-                "fields": [
-                  {
-                    "title": "Retries Used",
-                    "value": "${{ needs.agentic-pipeline.outputs.retries_used || 0 }}",
-                    "short": true
-                  },
-                  {
-                    "title": "Fixes Applied",
-                    "value": "${{ needs.agentic-pipeline.outputs.fixes_applied || 0 }}",
-                    "short": true
-                  }
-                ],
-                "footer": "Vibe Data Platform - Agentic"
-              }]
-            }' 2>/dev/null || echo "Webhook not configured"
+          if [ -n "${{ secrets.NOTIFICATION_WEBHOOK_URL }}" ]; then
+            curl -X POST "${{ secrets.NOTIFICATION_WEBHOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "text": "✅ Vibe Pipeline Succeeded",
+                "attachments": [{
+                  "color": "#00FF00",
+                  "title": "Pipeline Success",
+                  "title_link": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                  "text": "The agentic pipeline completed successfully."
+                }]
+              }' 2>/dev/null
+          fi
 
-      - name: Send Failure Webhook
-        if: needs.agentic-pipeline.result == 'failure'
-        continue-on-error: true
+      - name: Notify Failure
+        if: failure()
         run: |
-          curl -X POST "${{ secrets.NOTIFICATION_WEBHOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "text": "Vibe Agentic Pipeline Failed (After Self-Healing Attempts)",
-              "attachments": [{
-                "color": "#FF0000",
-                "title": "Pipeline Failure - Agent Could Not Resolve",
-                "title_link": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-                "text": "The agentic pipeline failed after exhausting self-healing attempts. Manual intervention required.",
-                "fields": [
-                  {
-                    "title": "Retries Attempted",
-                    "value": "${{ needs.agentic-pipeline.outputs.retries_used || 'N/A' }}",
-                    "short": true
-                  },
-                  {
-                    "title": "Check Issue",
-                    "value": "See GitHub Issues",
-                    "short": true
-                  }
-                ],
-                "footer": "Vibe Data Platform - Agentic"
-              }]
-            }' 2>/dev/null || echo "Webhook not configured"
+          if [ -n "${{ secrets.NOTIFICATION_WEBHOOK_URL }}" ]; then
+            curl -X POST "${{ secrets.NOTIFICATION_WEBHOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "text": "❌ Vibe Pipeline Failed",
+                "attachments": [{
+                  "color": "#FF0000",
+                  "title": "Pipeline Failure - Check GitHub Issues",
+                  "title_link": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                  "text": "The agentic pipeline failed after self-healing attempts. A GitHub Issue should have been created with details."
+                }]
+              }' 2>/dev/null
+          fi
 
-      - name: Send Email via Logic App
-        if: needs.agentic-pipeline.result == 'failure'
-        continue-on-error: true
-        run: |
-          curl -X POST "${{ secrets.LOGIC_APP_EMAIL_URL }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "subject": "Vibe Agentic Pipeline Failed - Manual Intervention Required",
-              "body": "The Vibe Data Platform agentic pipeline failed after self-healing attempts.\n\nRun ID: ${{ github.run_id }}\nTime: '"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'\n\nThe Claude agent attempted to diagnose and fix the issue but was unsuccessful. Please check the GitHub Issue created for detailed root cause analysis.\n\nView details: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "timestamp": "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'",
-              "run_id": "${{ github.run_id }}",
-              "repository": "${{ github.repository }}",
-              "severity": "high"
-            }' \
-            --fail-with-body 2>/dev/null || echo "Email notification not configured"
+          if [ -n "${{ secrets.LOGIC_APP_EMAIL_URL }}" ]; then
+            curl -X POST "${{ secrets.LOGIC_APP_EMAIL_URL }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "subject": "Vibe Pipeline Failed - Manual Intervention Required",
+                "body": "The pipeline failed after self-healing attempts.\n\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n\nCheck GitHub Issues for detailed root cause analysis.",
+                "severity": "high"
+              }' 2>/dev/null
+          fi
