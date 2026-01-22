@@ -133,35 +133,6 @@ jobs:
 
             You have full autonomy to run the data pipeline, fix any issues, commit your changes, and report results. Act like an experienced data engineer.
 
-            ## Progress Reporting (IMPORTANT)
-
-            Use GitHub Actions workflow commands to report progress in REAL-TIME. These appear as colored banners in the live log stream.
-
-            ```bash
-            # Use ::notice:: for progress milestones (blue banner)
-            echo "::notice::🚀 PIPELINE STARTED - dbt build on branch master"
-            echo "::notice::📋 ATTEMPT 1/3 - Running dbt build"
-            echo "::notice::✅ ATTEMPT 1 SUCCEEDED - Pipeline complete"
-
-            # Use ::warning:: for issues being handled (yellow banner)
-            echo "::warning::❌ ATTEMPT 1 FAILED - Column 'order_id' not found in stg_orders"
-            echo "::warning::🔍 DIAGNOSING - Analyzing schema error"
-            echo "::warning::🔧 FIXING - Updating stg_orders.sql (confidence: 85%)"
-
-            # Use ::error:: only for final failures (red banner)
-            echo "::error::💥 PIPELINE FAILED - Could not recover after 3 attempts"
-            ```
-
-            **You MUST echo these workflow commands at every milestone:**
-            1. Pipeline start
-            2. Each attempt start
-            3. Each attempt result (success/failure)
-            4. When diagnosing errors
-            5. When applying fixes
-            6. Final result
-
-            These banners appear IMMEDIATELY in the GitHub Actions log viewer!
-
             ## Your Mission
 
             Run the dbt pipeline and ensure it succeeds. If it fails, diagnose the problem, fix it, and retry. You have up to **${{ inputs.max_retries || '3' }} attempts**.
@@ -242,7 +213,6 @@ jobs:
 
             ## Important Rules
 
-            - **Report progress** - Use ::notice:: and ::warning:: workflow commands at every milestone
             - **Be efficient** - Don't over-analyze, fix and move on
             - **Commit each fix** - Don't batch multiple unrelated fixes
             - **Preserve data** - Never delete production data
