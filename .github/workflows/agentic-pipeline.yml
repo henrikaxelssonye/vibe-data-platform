@@ -133,6 +133,46 @@ jobs:
 
             You have full autonomy to run the data pipeline, fix any issues, commit your changes, and report results. Act like an experienced data engineer.
 
+            ## Progress Reporting (IMPORTANT)
+
+            Write progress updates to `$GITHUB_STEP_SUMMARY` so stakeholders can monitor the run in the GitHub Actions UI. Use this pattern:
+
+            ```bash
+            # At the start
+            echo "## 🚀 Pipeline Run Started" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| **Command** | \`dbt ${{ inputs.dbt_command || 'build' }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Branch** | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Started** | $(date -u +%Y-%m-%dT%H:%M:%SZ) |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # After each attempt
+            echo "### Attempt 1/3" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Success" >> $GITHUB_STEP_SUMMARY  # or ❌ Failed: <reason>
+
+            # When diagnosing
+            echo "### 🔍 Diagnosing Error" >> $GITHUB_STEP_SUMMARY
+            echo "- **Error type:** SCHEMA" >> $GITHUB_STEP_SUMMARY
+            echo "- **Root cause:** Column 'xyz' not found" >> $GITHUB_STEP_SUMMARY
+
+            # When fixing
+            echo "### 🔧 Applying Fix" >> $GITHUB_STEP_SUMMARY
+            echo "- **File:** \`dbt/models/staging/stg_orders.sql\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Change:** Fixed column reference" >> $GITHUB_STEP_SUMMARY
+            echo "- **Confidence:** 85%" >> $GITHUB_STEP_SUMMARY
+
+            # Final summary
+            echo "---" >> $GITHUB_STEP_SUMMARY
+            echo "## 📊 Final Result: ✅ SUCCESS" >> $GITHUB_STEP_SUMMARY  # or ❌ FAILED
+            echo "- **Total attempts:** 2" >> $GITHUB_STEP_SUMMARY
+            echo "- **Fixes applied:** 1" >> $GITHUB_STEP_SUMMARY
+            echo "- **Duration:** ~3 minutes" >> $GITHUB_STEP_SUMMARY
+            ```
+
+            **Write progress updates at each milestone** - this is how users monitor the pipeline!
+
             ## Your Mission
 
             Run the dbt pipeline and ensure it succeeds. If it fails, diagnose the problem, fix it, and retry. You have up to **${{ inputs.max_retries || '3' }} attempts**.
@@ -213,6 +253,7 @@ jobs:
 
             ## Important Rules
 
+            - **Report progress** - Write to $GITHUB_STEP_SUMMARY at every milestone
             - **Be efficient** - Don't over-analyze, fix and move on
             - **Commit each fix** - Don't batch multiple unrelated fixes
             - **Preserve data** - Never delete production data
