@@ -34,9 +34,11 @@ This file contains notes and learnings from the Claude agent's pipeline runs. Th
 
 | Error Pattern | Likely Cause | Fix |
 |---------------|--------------|-----|
-| `column "X" not found` | Typo in column name | Check source schema, fix spelling |
+| `column "X" not found` | Typo in column name OR nonexistent column | Check source schema, verify column exists in staging models |
 | `relation "X" does not exist` | Missing ref or seed | Run `dbt seed` first |
 | `syntax error` | SQL syntax issue | Check for missing commas, parentheses |
+
+**Recent fix (2026-01-22):** `orders_summary.sql` referenced `discount_amount` column that didn't exist in `stg_orders`. Fixed by removing discount calculations. Always verify column availability in upstream models before using them.
 
 ---
 
