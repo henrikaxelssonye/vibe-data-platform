@@ -229,21 +229,21 @@ jobs:
 
             Now, run the pipeline and handle whatever comes up. Good luck!
 
-          allowed_tools: |
-            Bash
-            Edit
-            Read
-            Write
-            Glob
-            Grep
-            WebFetch
-            WebSearch
-            TodoWrite
-            mcp__plugin_fabric-cli-plugin_microsoft-learn__microsoft_docs_search
-            mcp__plugin_fabric-cli-plugin_microsoft-learn__microsoft_docs_fetch
+          additional_permissions: |
+            Bash(dbt:*)
+            Bash(cd:*)
+            Bash(git:*)
+            Bash(gh:*)
+            Bash(pip:*)
+            Bash(python:*)
+            Bash(cat:*)
+            Bash(ls:*)
+            Bash(mkdir:*)
+            Bash(az:*)
 
           claude_args: |
             --max-turns 75
+            --allowedTools "Edit,Read,Write,Glob,Grep,WebFetch,WebSearch,TodoWrite"
 
       # =========================================================================
       # Post-Agent: Upload results regardless of outcome
