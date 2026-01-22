@@ -122,9 +122,26 @@ python scripts/extract_api.py
 
 # Extract specific API
 python scripts/extract_api.py --api jsonplaceholder
+
+# Extract weather forecast data
+python scripts/extract_api.py --api open_meteo
 ```
 
 Configure APIs in `config/sources.yml`.
+
+### Weather Data (Open-Meteo)
+
+The platform includes weather forecast data from the Open-Meteo API (free, no auth required):
+
+```bash
+# Extract 7-day weather forecast for Stockholm
+python scripts/extract_api.py --api open_meteo
+
+# View weather forecast
+cd dbt && dbt show --select weather_daily
+```
+
+Weather data includes: temperature (min/max/avg), precipitation, wind speed, and derived fields like weather comfort score and categorizations.
 
 ## dbt Commands
 
@@ -149,8 +166,10 @@ cd dbt && dbt show --select customer_orders
 | `stg_orders` | staging/view | Staged orders with line totals |
 | `stg_customers` | staging/view | Staged customer data |
 | `stg_products` | staging/view | Staged product catalog |
+| `stg_weather_forecast` | staging/view | Daily weather forecast from Open-Meteo API |
 | `orders_summary` | marts/table | Customer order aggregations |
 | `customer_orders` | marts/table | Customer profile with orders |
+| `weather_daily` | marts/table | Daily weather summary with analytics fields |
 
 ## Configuration
 

@@ -86,6 +86,24 @@ sources:
           method: GET
           output_file: data/raw/api_users.json
 
+    # Open-Meteo Weather API (free, no auth required)
+    open_meteo:
+      enabled: true
+      base_url: "https://api.open-meteo.com"
+      auth_type: none
+      endpoints:
+        - name: weather_forecast
+          path: /v1/forecast
+          method: GET
+          params:
+            latitude: 59.33          # Stockholm coordinates (configurable)
+            longitude: 18.07
+            hourly: temperature_2m,precipitation,wind_speed_10m,relative_humidity_2m
+            daily: temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max
+            timezone: auto
+            forecast_days: 7
+          output_file: data/raw/api_weather_forecast.json
+
   # Database sources (for future expansion)
   databases:
     # Example external database

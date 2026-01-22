@@ -1,0 +1,73 @@
+version: 2
+
+models:
+  - name: weather_daily
+    description: "Daily weather summary mart with analytics fields and weather categorization"
+    columns:
+      - name: forecast_date
+        description: "Date of the weather forecast"
+        tests:
+          - not_null
+          - unique
+      - name: latitude
+        description: "Latitude of the forecast location"
+        tests:
+          - not_null
+      - name: longitude
+        description: "Longitude of the forecast location"
+        tests:
+          - not_null
+      - name: timezone
+        description: "Timezone of the forecast location"
+      - name: elevation_m
+        description: "Elevation in meters"
+      - name: temperature_max_c
+        description: "Maximum temperature in Celsius"
+        tests:
+          - not_null
+      - name: temperature_min_c
+        description: "Minimum temperature in Celsius"
+        tests:
+          - not_null
+      - name: temperature_avg_c
+        description: "Average temperature (calculated from max and min)"
+      - name: temperature_range_c
+        description: "Temperature range (max - min)"
+      - name: temperature_category
+        description: "Temperature classification"
+        tests:
+          - accepted_values:
+              values: ['freezing', 'cold', 'mild', 'warm', 'hot']
+      - name: precipitation_mm
+        description: "Total precipitation in millimeters"
+        tests:
+          - not_null
+      - name: precipitation_category
+        description: "Precipitation classification"
+      - name: has_precipitation
+        description: "Boolean indicating if there is any precipitation"
+      - name: wind_speed_max_kmh
+        description: "Maximum wind speed in km/h"
+        tests:
+          - not_null
+      - name: wind_category
+        description: "Wind speed classification"
+        tests:
+          - accepted_values:
+              values: ['calm', 'light', 'moderate', 'strong', 'very_strong']
+      - name: year
+        description: "Year extracted from forecast date"
+      - name: month
+        description: "Month extracted from forecast date"
+      - name: day
+        description: "Day extracted from forecast date"
+      - name: day_of_week
+        description: "Day of week (0=Sunday, 6=Saturday)"
+      - name: is_weekend
+        description: "True if Saturday or Sunday"
+      - name: weather_comfort_score
+        description: "Composite weather comfort score (higher is better)"
+      - name: extracted_at
+        description: "Timestamp when data was extracted from API"
+      - name: updated_at
+        description: "Timestamp when mart was last updated"

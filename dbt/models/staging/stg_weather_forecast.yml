@@ -1,0 +1,55 @@
+version: 2
+
+models:
+  - name: stg_weather_forecast
+    description: "Staged daily weather forecast data from Open-Meteo API for Stockholm"
+    columns:
+      - name: forecast_date
+        description: "Date of the weather forecast"
+        tests:
+          - not_null
+          - unique
+      - name: latitude
+        description: "Latitude of the forecast location"
+        tests:
+          - not_null
+      - name: longitude
+        description: "Longitude of the forecast location"
+        tests:
+          - not_null
+      - name: timezone
+        description: "Timezone of the forecast location"
+      - name: elevation_m
+        description: "Elevation in meters"
+      - name: temperature_max_c
+        description: "Maximum temperature in Celsius"
+        tests:
+          - not_null
+      - name: temperature_min_c
+        description: "Minimum temperature in Celsius"
+        tests:
+          - not_null
+      - name: temperature_avg_c
+        description: "Average temperature (calculated from max and min)"
+      - name: precipitation_mm
+        description: "Total precipitation in millimeters"
+        tests:
+          - not_null
+      - name: wind_speed_max_kmh
+        description: "Maximum wind speed in km/h"
+        tests:
+          - not_null
+      - name: precipitation_category
+        description: "Precipitation classification (dry, light, moderate, heavy)"
+        tests:
+          - accepted_values:
+              values: ['dry', 'light_precipitation', 'moderate_precipitation', 'heavy_precipitation']
+      - name: temperature_category
+        description: "Temperature classification (freezing, cold, mild, warm, hot)"
+        tests:
+          - accepted_values:
+              values: ['freezing', 'cold', 'mild', 'warm', 'hot']
+      - name: extracted_at
+        description: "Timestamp when data was extracted from API"
+      - name: loaded_at
+        description: "Timestamp when data was loaded into dbt"

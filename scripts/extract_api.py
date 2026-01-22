@@ -77,10 +77,13 @@ def extract_endpoint(api_name: str, api_config: dict, endpoint: dict) -> bool:
         headers = get_auth_header(api_config)
         headers["Accept"] = "application/json"
 
+        # Get query parameters from endpoint config
+        params = endpoint.get("params", {})
+
         if method == "GET":
-            response = requests.get(url, headers=headers, timeout=30)
+            response = requests.get(url, headers=headers, params=params, timeout=30)
         elif method == "POST":
-            response = requests.post(url, headers=headers, timeout=30)
+            response = requests.post(url, headers=headers, params=params, timeout=30)
         else:
             print(f"    Error: Unsupported method {method}")
             return False

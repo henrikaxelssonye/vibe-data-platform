@@ -60,3 +60,15 @@ sources:
             description: "User email"
           - name: username
             description: "Username"
+
+      - name: raw_api_weather_forecast
+        description: "Weather forecast data from Open-Meteo API"
+        columns:
+          - name: extracted_at
+            description: "Timestamp of data extraction"
+          - name: source
+            description: "API source name"
+          - name: endpoint
+            description: "API endpoint name"
+          - name: data
+            description: "Nested weather data including hourly and daily forecasts"
