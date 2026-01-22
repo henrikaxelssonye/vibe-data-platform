@@ -73,7 +73,7 @@ Create an issue immediately with:
 ```bash
 gh issue create \
   --title "Pipeline Failure: <brief description>" \
-  --label "bug,pipeline,auto-healing" \
+  --label "bug,pipeline-failure,auto-healing" \
   --body "## Pipeline Failure Detected
 
 **Run:** <workflow run URL>
@@ -133,10 +133,12 @@ gh issue edit <issue_number> --add-label "needs-triage" --remove-label "auto-hea
 
 ## When Invoked
 
-1. **Read configuration** from `config/execution_mode.yml`
-2. **Log start** to `logs/pipeline_runs.log`
-3. **Execute the self-healing loop** as described above
-4. **Report final status** to the user with:
+1. **Read agent notes** from `.claude/agent-notes.md` for lessons learned
+2. **Read configuration** from `config/execution_mode.yml`
+3. **Log start** to `logs/pipeline_runs.log`
+4. **Execute the self-healing loop** as described above
+5. **Update agent notes** if you learn something new (e.g., missing labels, new error patterns)
+6. **Report final status** to the user with:
    - Overall result (success/failure)
    - Number of retries attempted
    - Fixes applied (if any)

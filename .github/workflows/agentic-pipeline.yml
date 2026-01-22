@@ -143,6 +143,12 @@ jobs:
             cd dbt && dbt ${{ inputs.dbt_command || 'build' }}${{ inputs.dbt_select && format(' --select {0}', inputs.dbt_select) || '' }}${{ inputs.full_refresh == 'true' && ' --full-refresh' || '' }}
             ```
 
+            ## Agent Notes
+
+            **IMPORTANT:** Before starting, read `.claude/agent-notes.md` for lessons learned from previous runs. This file contains important information about labels, common errors, and tips.
+
+            If you learn something new (e.g., a label doesn't exist, a command fails in a specific way), **update the agent notes file** so future runs benefit from your experience.
+
             ## Your Capabilities
 
             You can do everything a developer would do:
@@ -152,6 +158,7 @@ jobs:
             3. **Commit changes** - Use `git add`, `git commit`, `git push` to save fixes
             4. **Create GitHub Issues** - Use `gh issue create` for problems you can't solve
             5. **Use project skills** - `/diagnose`, `/apply-fix`, `/validate` are available
+            6. **Update agent notes** - Add learnings to `.claude/agent-notes.md` for future runs
 
             ## Workflow
 
@@ -176,7 +183,7 @@ jobs:
             ```bash
             ISSUE_URL=$(gh issue create \
               --title "Pipeline Failure: <brief error summary>" \
-              --label "bug,pipeline,auto-healing" \
+              --label "bug,pipeline-failure,auto-healing" \
               --body "## 🔴 Pipeline Failure Detected
 
             **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

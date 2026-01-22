@@ -15,6 +15,7 @@ vibe-data-platform/
 │   │   ├── pipeline-orchestrator.md  # Main pipeline coordinator
 │   │   ├── diagnostician.md          # Error analysis specialist
 │   │   └── simple-demo.md            # Test agent
+│   ├── agent-notes.md                # Learnings from previous runs
 │   └── skills/
 │       ├── run-pipeline/             # Execute dbt pipelines
 │       ├── diagnose/                 # Analyze errors
@@ -70,6 +71,16 @@ vibe-data-platform/
 | `pipeline-orchestrator` | opus | Main coordinator with self-healing loop |
 | `diagnostician` | sonnet | Deep error analysis and fix proposals |
 | `simple-demo` | opus | Test agent system functionality |
+
+## Agent Notes
+
+The file `.claude/agent-notes.md` contains learnings from previous pipeline runs. Agents should:
+
+1. **Read notes before starting** - Check for known issues, correct labels, common errors
+2. **Update notes after learning** - If something fails unexpectedly (e.g., a label doesn't exist), add it to the notes
+3. **Commit note updates** - Push changes so future runs benefit
+
+This creates a feedback loop where agents get smarter over time by learning from past mistakes.
 
 ## Available Skills
 
