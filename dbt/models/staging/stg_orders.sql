@@ -6,7 +6,7 @@ with source as (
 staged as (
     select
         order_id,
-        custmer_id,  -- typo: missing 'o'
+        customer_id,
         cast(order_date as date) as order_date,
         product_name,
         quantity,
