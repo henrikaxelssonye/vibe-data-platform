@@ -1,0 +1,5 @@
+# Vibe Data Platform - Python Dependencies
+dbt-duckdb>=1.7.0
+pyyaml>=6.0
+requests>=2.31.0
+azure-storage-blob>=12.19.0

@@ -88,13 +88,11 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-          cache-dependency-path: |
-            **/requirements*.txt
-            dbt/packages.yml
+          cache-dependency-path: 'requirements.txt'
 
       - name: Install dependencies
         run: |
-          pip install dbt-duckdb pyyaml requests azure-storage-blob
+          pip install -r requirements.txt
 
       - name: Setup directories
         run: |
