@@ -156,15 +156,84 @@ jobs:
             ## Workflow
 
             1. **Run the pipeline** - Execute the dbt command
-            2. **If success** - Report success and exit
+            2. **If success** - Close any open tracking issue, report success, exit
             3. **If failure**:
+               - **Create a GitHub Issue immediately** (before attempting fixes)
                - Analyze the error output
                - Use `/diagnose` to understand root cause
                - Fix the issue (edit SQL, configs, etc.)
                - Create a backup before modifying files
                - Commit your fix with a descriptive message
                - Retry the pipeline
-               - Repeat until success or max attempts exhausted
+               - If retry succeeds: **Close the issue** with fix details
+               - If max attempts exhausted: **Update the issue** with RCA (don't create a new one)
+
+            ## Issue Lifecycle Management
+
+            **IMPORTANT:** Track pipeline failures with GitHub Issues throughout the self-healing process.
+
+            ### On First Failure - Create Issue Immediately
+            ```bash
+            ISSUE_URL=$(gh issue create \
+              --title "Pipeline Failure: <brief error summary>" \
+              --label "bug,pipeline,auto-healing" \
+              --body "## 🔴 Pipeline Failure Detected
+
+            **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            **Branch:** ${{ github.ref_name }}
+            **Time:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+            ## Error
+            \`\`\`
+            <error message>
+            \`\`\`
+
+            ## Status
+            🔄 **Auto-healing in progress...**
+
+            ---
+            *This issue was created automatically. It will be closed if the fix succeeds.*")
+            ISSUE_NUMBER=$(echo $ISSUE_URL | grep -oE '[0-9]+$')
+            echo "Created issue #$ISSUE_NUMBER"
+            ```
+
+            Store the issue number - you'll need it later.
+
+            ### On Successful Fix - Close the Issue
+            ```bash
+            gh issue close $ISSUE_NUMBER --comment "## ✅ Fixed Automatically
+
+            **Fix applied:** <description of what you fixed>
+            **Commit:** <commit SHA or link>
+            **Attempt:** <which retry succeeded, e.g., 2 of 3>
+
+            The pipeline is now passing."
+            ```
+
+            ### On All Retries Exhausted - Update (Don't Create New)
+            ```bash
+            gh issue comment $ISSUE_NUMBER --body "## ❌ Auto-healing Failed
+
+            **Attempts exhausted:** ${{ inputs.max_retries || '3' }}
+
+            ## Root Cause Analysis
+            <your diagnosis>
+
+            ## Attempted Fixes
+            1. <fix 1 and why it didn't work>
+            2. <fix 2 and why it didn't work>
+
+            ## Recommended Manual Steps
+            - <what a human should do>
+
+            ## Relevant Files
+            - <list files involved>
+
+            ---
+            *Manual intervention required.*"
+
+            gh issue edit $ISSUE_NUMBER --add-label "needs-triage" --remove-label "auto-healing"
+            ```
 
             ## Git Commit Guidelines
 
@@ -175,50 +244,21 @@ jobs:
 
             - Root cause: <what was wrong>
             - Fix applied: <what you changed>
+            - Issue: #$ISSUE_NUMBER
 
             Co-Authored-By: Claude <noreply@anthropic.com>"
             git push origin ${{ github.ref_name }}
             ```
 
-            ## If You Cannot Fix It
-
-            After exhausting all attempts, create a detailed GitHub Issue:
-
-            ```bash
-            gh issue create \
-              --title "Pipeline Failure: <brief description>" \
-              --label "bug,pipeline,needs-triage" \
-              --body "## Pipeline Failure Report
-
-            **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            **Branch:** ${{ github.ref_name }}
-            **Time:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
-
-            ## Error Summary
-            <describe the error>
-
-            ## Root Cause Analysis
-            <your diagnosis>
-
-            ## Attempted Fixes
-            <what you tried>
-
-            ## Recommended Manual Steps
-            <what a human should do>
-
-            ## Relevant Files
-            - <list files involved>
-            "
-            ```
-
             ## Important Rules
 
+            - **Create issue on first failure** - Always track failures with a GitHub Issue before fixing
+            - **Close issue on success** - When the pipeline passes after a fix, close the tracking issue
             - **Be efficient** - Don't over-analyze, fix and move on
             - **Commit each fix** - Don't batch multiple unrelated fixes
             - **Preserve data** - Never delete production data
             - **Log everything** - Your output is the audit trail
             - **Confidence threshold** - Apply fixes you're >= 70% confident about
-            - **Ask for help** - Create an issue rather than making risky changes
 
             ## Context
 

@@ -33,30 +33,96 @@ Follow this control flow:
       v
 2. Check result
       |
-   Success? --> Log success, report to user, DONE
+   Success? --> Log success, close any open issue, report to user, DONE
       |
       No
       v
-3. Diagnose error (/diagnose)
+3. Create GitHub Issue (if first failure)
+      |  - Title: "Pipeline Failure: <error summary>"
+      |  - Labels: bug, pipeline, auto-healing
+      |  - Store issue number for later
+      v
+4. Diagnose error (/diagnose)
       |
       v
-4. Generate fix proposal
+5. Generate fix proposal
       |
       v
-5. Check mode:
+6. Check mode:
    - autonomous + high confidence --> Apply fix automatically
    - human-in-loop --> Present fix, ask for approval
       |
       v
-6. Apply fix if approved (/apply-fix)
+7. Apply fix if approved (/apply-fix)
       |
       v
-7. Increment retry counter
+8. Increment retry counter
       |
       v
-8. Check retry limit (max 3 retries)
+9. Check retry limit (max 3 retries)
    - Under limit --> Go to step 1
-   - Over limit --> Report failure, suggest manual intervention
+   - Over limit --> Update issue with final status, report failure
+```
+
+## Issue Lifecycle Management
+
+When running in CI (GitHub Actions), track failures with GitHub Issues:
+
+### On First Failure
+Create an issue immediately with:
+```bash
+gh issue create \
+  --title "Pipeline Failure: <brief description>" \
+  --label "bug,pipeline,auto-healing" \
+  --body "## Pipeline Failure Detected
+
+**Run:** <workflow run URL>
+**Time:** <timestamp>
+
+## Error
+<error message>
+
+## Status
+🔄 Auto-healing in progress...
+
+---
+*This issue was created automatically. It will be closed if the fix succeeds.*"
+```
+
+Store the issue number for later updates.
+
+### On Successful Fix
+Close the issue with a success comment:
+```bash
+gh issue close <issue_number> --comment "## ✅ Fixed Automatically
+
+**Fix applied:** <description of fix>
+**Commit:** <commit SHA>
+**Attempt:** <which retry succeeded>
+
+The pipeline is now passing."
+```
+
+### On All Retries Exhausted
+Update the issue (don't create a new one):
+```bash
+gh issue comment <issue_number> --body "## ❌ Auto-healing Failed
+
+**Attempts:** <count>
+
+## Root Cause Analysis
+<diagnosis>
+
+## Attempted Fixes
+<list of fixes tried>
+
+## Recommended Manual Steps
+<suggestions>
+
+---
+*Manual intervention required.*"
+
+gh issue edit <issue_number> --add-label "needs-triage" --remove-label "auto-healing"
 ```
 
 ## Retry Logic
