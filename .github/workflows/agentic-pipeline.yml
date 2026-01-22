@@ -135,11 +135,18 @@ jobs:
 
             ## Your Mission
 
-            Run the dbt pipeline and ensure it succeeds. If it fails, diagnose the problem, fix it, and retry. You have up to **${{ inputs.max_retries || '3' }} attempts**.
+            1. **Extract fresh data from APIs** (weather, etc.)
+            2. **Run the dbt pipeline** and ensure it succeeds
 
-            ## Pipeline Command
+            If anything fails, diagnose the problem, fix it, and retry. You have up to **${{ inputs.max_retries || '3' }} attempts**.
+
+            ## Pipeline Commands
 
             ```bash
+            # Step 1: Extract API data
+            python scripts/extract_api.py
+
+            # Step 2: Run dbt pipeline
             cd dbt && dbt ${{ inputs.dbt_command || 'build' }}${{ inputs.dbt_select && format(' --select {0}', inputs.dbt_select) || '' }}${{ inputs.full_refresh == 'true' && ' --full-refresh' || '' }}
             ```
 
@@ -162,9 +169,10 @@ jobs:
 
             ## Workflow
 
-            1. **Run the pipeline** - Execute the dbt command
-            2. **If success** - Close any open tracking issue, report success, exit
-            3. **If failure**:
+            1. **Extract API data** - Run `python scripts/extract_api.py` for fresh data
+            2. **Run the pipeline** - Execute the dbt command
+            3. **If success** - Close any open tracking issue, report success, exit
+            4. **If failure**:
                - **Create a GitHub Issue immediately** (before attempting fixes)
                - Analyze the error output
                - Use `/diagnose` to understand root cause
@@ -308,6 +316,20 @@ jobs:
               --auth-mode key \
               --account-key $AZURE_STORAGE_KEY
             echo "DuckDB uploaded to Azure"
+          fi
+
+      - name: Upload raw data to Azure
+        if: always()
+        run: |
+          if [ -d "data/raw" ] && [ "$(ls -A data/raw 2>/dev/null)" ]; then
+            az storage blob upload-batch \
+              --account-name $AZURE_STORAGE_ACCOUNT \
+              --destination raw \
+              --source data/raw \
+              --overwrite \
+              --auth-mode key \
+              --account-key $AZURE_STORAGE_KEY
+            echo "Raw data uploaded to Azure"
           fi
 
       - name: Upload logs to Azure
