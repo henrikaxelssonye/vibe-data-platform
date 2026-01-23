@@ -24,7 +24,17 @@ vibe-data-platform/
 ├── .github/
 │   └── workflows/
 │       ├── pipeline.yml              # Basic scheduled workflow
-│       └── agentic-pipeline.yml      # Claude-powered self-healing workflow
+│       ├── agentic-pipeline.yml      # Claude-powered self-healing workflow
+│       └── dashboard.yml             # Dashboard build and deploy
+├── dashboard/
+│   ├── observablehq.config.js        # Observable Framework config
+│   ├── package.json                  # Node.js dependencies
+│   └── src/
+│       ├── index.md                  # Overview dashboard
+│       ├── customers.md              # Customer analytics
+│       ├── sales.md                  # Sales performance
+│       ├── weather.md                # Weather insights
+│       └── data/                     # Parquet data files
 ├── azure/
 │   ├── setup.sh                      # Provision Azure resources
 │   ├── teardown.sh                   # Remove Azure resources
@@ -142,6 +152,52 @@ cd dbt && dbt show --select weather_daily
 ```
 
 Weather data includes: temperature (min/max/avg), precipitation, wind speed, and derived fields like weather comfort score and categorizations.
+
+## Dashboard
+
+The platform includes an interactive web dashboard built with Observable Framework, hosted on GitHub Pages.
+
+### Dashboard Pages
+
+| Page | Path | Description |
+|------|------|-------------|
+| Overview | `/` | KPIs, customer segments, revenue summary |
+| Customers | `/customers` | Customer analytics, segmentation, geographic distribution |
+| Sales | `/sales` | Order status, revenue by customer, product performance |
+| Weather | `/weather` | 7-day forecast, temperature trends, comfort scores |
+
+### Dashboard Commands
+
+```bash
+# Export dbt data to Parquet for dashboard
+python scripts/export_dashboard_data.py
+
+# Install dashboard dependencies
+cd dashboard && npm install
+
+# Build dashboard (production)
+cd dashboard && npm run build
+
+# Preview dashboard locally
+cd dashboard && npm run dev
+```
+
+### Dashboard Deployment
+
+The dashboard auto-deploys to GitHub Pages when:
+- The agentic pipeline completes successfully
+- Changes are pushed to `dashboard/` directory
+- Manually triggered via GitHub Actions
+
+URL: `https://<username>.github.io/vibe-data-platform/`
+
+### Data Flow
+
+```
+dbt models → export_dashboard_data.py → Parquet files → Observable Framework → GitHub Pages
+                                              ↓
+                                    Browser (DuckDB-WASM) → Interactive Charts
+```
 
 ## dbt Commands
 

@@ -1,0 +1,100 @@
+name: Build and Deploy Dashboard
+
+on:
+  # Run after the main pipeline completes
+  workflow_run:
+    workflows: ["Agentic Data Pipeline"]
+    types:
+      - completed
+    branches:
+      - master
+
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      skip_dbt:
+        description: 'Skip dbt build (use existing data)'
+        required: false
+        default: 'false'
+        type: boolean
+
+  # Also run on pushes to dashboard directory
+  push:
+    branches:
+      - master
+    paths:
+      - 'dashboard/**'
+      - '.github/workflows/dashboard.yml'
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+# Required permissions for GitHub Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install Python dependencies
+        run: |
+          pip install duckdb pandas pyarrow dbt-core dbt-duckdb
+
+      - name: Install dashboard dependencies
+        working-directory: dashboard
+        run: npm ci || npm install
+
+      - name: Run dbt build
+        if: ${{ github.event.inputs.skip_dbt != 'true' }}
+        working-directory: dbt
+        run: |
+          dbt seed
+          dbt build
+
+      - name: Export data for dashboard
+        run: python scripts/export_dashboard_data.py
+
+      - name: Build dashboard
+        working-directory: dashboard
+        env:
+          BASE_PATH: /vibe-data-platform/
+        run: npm run build
+
+      - name: Upload artifact for Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dashboard/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
