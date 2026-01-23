@@ -156,18 +156,20 @@ jobs:
 
             ## Pipeline Commands
 
+            **IMPORTANT:** Use subshells `(cd dir && command)` to avoid changing the working directory. All scripts expect to run from the repository root.
+
             ```bash
-            # Step 1: Extract API data
+            # Step 1: Extract API data (from repo root)
             python scripts/extract_api.py
 
-            # Step 2: Run dbt pipeline
-            cd dbt && dbt ${{ inputs.dbt_command || 'build' }}${{ inputs.dbt_select && format(' --select {0}', inputs.dbt_select) || '' }}${{ inputs.full_refresh == 'true' && ' --full-refresh' || '' }}
+            # Step 2: Run dbt pipeline (subshell keeps us in repo root)
+            (cd dbt && dbt ${{ inputs.dbt_command || 'build' }}${{ inputs.dbt_select && format(' --select {0}', inputs.dbt_select) || '' }}${{ inputs.full_refresh == 'true' && ' --full-refresh' || '' }})
 
-            # Step 3: Export dashboard data
+            # Step 3: Export dashboard data (from repo root)
             python scripts/export_dashboard_data.py
 
-            # Step 4: Build dashboard
-            cd dashboard && npm run build
+            # Step 4: Build dashboard (subshell keeps us in repo root)
+            (cd dashboard && npm run build)
             ```
 
             **Important:** The dashboard build is part of your mission. If it fails (TypeScript errors, missing data, etc.), diagnose and fix the issue just like you would for dbt errors.
