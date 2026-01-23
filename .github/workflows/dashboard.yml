@@ -1,24 +1,29 @@
-name: Build and Deploy Dashboard
+# Dashboard Build and Deploy Workflow (UI-Only Changes)
+#
+# This workflow is for deploying dashboard UI changes ONLY (styling, layout, etc.)
+# It downloads pre-built data from Azure - it does NOT run dbt or data transformations.
+#
+# For full pipeline runs (data + dashboard), use the Agentic Data Pipeline instead.
+# The agentic pipeline handles: dbt build -> export data -> build dashboard -> deploy
+#
+# Use this workflow when:
+#   - Making UI-only changes to dashboard/*.md files
+#   - Updating chart styles, layouts, or Observable components
+#   - Testing dashboard changes without running the full pipeline
+
+name: Dashboard (UI Only)
 
 on:
-  # Run after the main pipeline completes
-  workflow_run:
-    workflows: ["Agentic Data Pipeline"]
-    types:
-      - completed
-    branches:
-      - master
-
-  # Allow manual trigger
+  # Manual trigger for UI-only deployments
   workflow_dispatch:
     inputs:
-      skip_dbt:
-        description: 'Skip dbt build (use existing data)'
+      use_sample_data:
+        description: 'Use sample data if Azure download fails'
         required: false
-        default: 'false'
+        default: 'true'
         type: boolean
 
-  # Also run on pushes to dashboard directory
+  # Run on pushes to dashboard directory (for UI-only changes)
   push:
     branches:
       - master
@@ -36,6 +41,10 @@ permissions:
   contents: read
   pages: write
   id-token: write
+
+env:
+  AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+  AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
 
 jobs:
   build:
@@ -59,21 +68,56 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install duckdb pandas pyarrow dbt-core dbt-duckdb
+          pip install duckdb pandas pyarrow
 
       - name: Install dashboard dependencies
         working-directory: dashboard
         run: npm ci || npm install
 
-      - name: Run dbt build
-        if: ${{ github.event.inputs.skip_dbt != 'true' }}
-        working-directory: dbt
+      - name: Download dashboard data from Azure
+        id: download_data
+        continue-on-error: true
         run: |
-          dbt seed
-          dbt build
+          mkdir -p dashboard/src/data
 
-      - name: Export data for dashboard
-        run: python scripts/export_dashboard_data.py
+          # Download parquet files from Azure
+          for file in customer_orders orders_summary weather_daily; do
+            echo "Downloading ${file}.parquet..."
+            az storage blob download \
+              --account-name $AZURE_STORAGE_ACCOUNT \
+              --container-name dashboard \
+              --name "${file}.parquet" \
+              --file "dashboard/src/data/${file}.parquet" \
+              --auth-mode key \
+              --account-key $AZURE_STORAGE_KEY \
+              2>/dev/null || echo "Failed to download ${file}.parquet"
+          done
+
+          # Check if we got any data
+          if ls dashboard/src/data/*.parquet 1> /dev/null 2>&1; then
+            echo "downloaded=true" >> $GITHUB_OUTPUT
+            echo "Successfully downloaded dashboard data from Azure"
+          else
+            echo "downloaded=false" >> $GITHUB_OUTPUT
+            echo "No data downloaded from Azure"
+          fi
+
+      - name: Generate sample data (fallback)
+        if: steps.download_data.outputs.downloaded != 'true' && inputs.use_sample_data != 'false'
+        run: |
+          echo "Using sample data as fallback..."
+          python scripts/export_dashboard_data.py --sample
+
+      - name: Verify data files exist
+        run: |
+          echo "Data files in dashboard/src/data:"
+          ls -la dashboard/src/data/ || echo "No data directory"
+
+          # Fail if no parquet files
+          if ! ls dashboard/src/data/*.parquet 1> /dev/null 2>&1; then
+            echo "ERROR: No parquet files found for dashboard"
+            exit 1
+          fi
 
       - name: Build dashboard
         working-directory: dashboard

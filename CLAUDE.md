@@ -184,20 +184,27 @@ cd dashboard && npm run dev
 
 ### Dashboard Deployment
 
-The dashboard auto-deploys to GitHub Pages when:
-- The agentic pipeline completes successfully
-- Changes are pushed to `dashboard/` directory
-- Manually triggered via GitHub Actions
+The dashboard build and deploy is **part of the self-healing agentic pipeline**. If the dashboard build fails, Claude can diagnose and fix the issue.
+
+**Agentic Pipeline (main deployment):**
+```
+Claude Agent Mission:
+  1. Extract API data
+  2. Run dbt build
+  3. Export dashboard data (parquet)
+  4. Build dashboard (npm run build)  ← Claude can fix errors here too
+
+Post-Agent:
+  5. Deploy to GitHub Pages
+  6. Upload data to Azure (backup)
+```
+
+**UI-Only Changes workflow (`dashboard.yml`):**
+- For CSS, layout, or styling changes that don't need fresh data
+- Downloads existing parquet from Azure, builds, and deploys
+- NOT part of self-healing (simpler, faster)
 
 URL: `https://<username>.github.io/vibe-data-platform/`
-
-### Data Flow
-
-```
-dbt models → export_dashboard_data.py → Parquet files → Observable Framework → GitHub Pages
-                                              ↓
-                                    Browser (DuckDB-WASM) → Interactive Charts
-```
 
 ## dbt Commands
 
@@ -350,6 +357,7 @@ The platform supports Azure Blob Storage for cloud persistence and GitHub Action
 | `raw` | Source data files (CSV, Parquet, JSON) |
 | `duckdb` | DuckDB database file |
 | `logs` | Pipeline execution logs |
+| `dashboard` | Exported parquet files for dashboard |
 
 ### Data Sync Commands
 
@@ -384,30 +392,42 @@ cd dbt && dbt build --target azure
 
 ## Scheduled Execution
 
-Pipeline runs are scheduled via GitHub Actions. Two workflows are available:
+Pipeline runs are scheduled via GitHub Actions. Three workflows are available:
 
 | Workflow | File | Description |
 |----------|------|-------------|
 | Basic | `pipeline.yml` | Simple dbt execution, fails on error |
-| Agentic | `agentic-pipeline.yml` | Claude-powered self-healing pipeline |
+| Agentic | `agentic-pipeline.yml` | Claude-powered self-healing pipeline + dashboard |
+| Dashboard UI | `dashboard.yml` | UI-only changes (no data rebuild) |
+
+**Important:** The agentic pipeline includes dashboard build/deploy. Claude can fix both dbt errors AND dashboard build errors. The separate `dashboard.yml` workflow is only for quick UI-only changes that don't need fresh data.
 
 ### Agentic Pipeline (Recommended)
 
-The agentic workflow uses `anthropics/claude-code-action` to run pipelines with intelligent self-healing:
+The agentic workflow uses `anthropics/claude-code-action` to run the full pipeline with intelligent self-healing:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                 Claude Pipeline Orchestrator                 │
 │                                                             │
-│  1. Run dbt build                                           │
-│  2. If error → /diagnose → /apply-fix → retry (max 3x)     │
-│  3. If unrecoverable → Create detailed GitHub Issue         │
+│  1. Extract API data (weather, etc.)                        │
+│  2. Run dbt build                                           │
+│  3. Export dashboard data to Parquet                        │
+│  4. Build dashboard (npm run build)                         │
+│  5. If error → /diagnose → /apply-fix → retry (max 3x)     │
+│  6. If unrecoverable → Create detailed GitHub Issue         │
 │                                                             │
+└─────────────────────────────────────────────────────────────┘
+         │
+         ▼ (on success)
+┌─────────────────────────────────────────────────────────────┐
+│              Deploy Dashboard to GitHub Pages               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 **Benefits:**
-- Automatic error diagnosis and fix application
+- Full pipeline: data extraction → dbt → dashboard → deploy
+- Claude can fix both dbt errors AND dashboard build errors
 - Up to 3 retry attempts with exponential backoff
 - Detailed root cause analysis in GitHub Issues
 - Lower noise - only creates issues for truly unresolvable errors

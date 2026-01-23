@@ -21,7 +21,8 @@ permissions:
   contents: write       # Commit fixes directly
   pull-requests: write  # Create PRs if preferred
   issues: write         # Create issues for unresolvable failures
-  id-token: write       # Required for claude-code-action
+  id-token: write       # Required for claude-code-action and GitHub Pages
+  pages: write          # Deploy dashboard to GitHub Pages
 
 on:
   schedule:
@@ -90,9 +91,20 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'requirements.txt'
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           pip install -r requirements.txt
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install dashboard dependencies
+        working-directory: dashboard
+        run: npm ci || npm install
 
       - name: Setup directories
         run: |
@@ -137,6 +149,8 @@ jobs:
 
             1. **Extract fresh data from APIs** (weather, etc.)
             2. **Run the dbt pipeline** and ensure it succeeds
+            3. **Export dashboard data** to Parquet files
+            4. **Build the dashboard** using Observable Framework
 
             If anything fails, diagnose the problem, fix it, and retry. You have up to **${{ inputs.max_retries || '3' }} attempts**.
 
@@ -148,7 +162,15 @@ jobs:
 
             # Step 2: Run dbt pipeline
             cd dbt && dbt ${{ inputs.dbt_command || 'build' }}${{ inputs.dbt_select && format(' --select {0}', inputs.dbt_select) || '' }}${{ inputs.full_refresh == 'true' && ' --full-refresh' || '' }}
+
+            # Step 3: Export dashboard data
+            python scripts/export_dashboard_data.py
+
+            # Step 4: Build dashboard
+            cd dashboard && npm run build
             ```
+
+            **Important:** The dashboard build is part of your mission. If it fails (TypeScript errors, missing data, etc.), diagnose and fix the issue just like you would for dbt errors.
 
             ## Agent Notes
 
@@ -160,8 +182,8 @@ jobs:
 
             You can do everything a developer would do:
 
-            1. **Run commands** - Execute dbt, python scripts, any CLI tools
-            2. **Read and edit files** - Examine models, fix SQL, update configs
+            1. **Run commands** - Execute dbt, python scripts, npm, any CLI tools
+            2. **Read and edit files** - Examine models, fix SQL, update configs, fix TypeScript/JS
             3. **Commit changes** - Use `git add`, `git commit`, `git push` to save fixes
             4. **Create GitHub Issues** - Use `gh issue create` for problems you can't solve
             5. **Use project skills** - `/diagnose`, `/apply-fix`, `/validate` are available
@@ -170,9 +192,11 @@ jobs:
             ## Workflow
 
             1. **Extract API data** - Run `python scripts/extract_api.py` for fresh data
-            2. **Run the pipeline** - Execute the dbt command
-            3. **If success** - Close any open tracking issue, report success, exit
-            4. **If failure**:
+            2. **Run the dbt pipeline** - Execute the dbt command
+            3. **Export dashboard data** - Run `python scripts/export_dashboard_data.py`
+            4. **Build dashboard** - Run `cd dashboard && npm run build`
+            5. **If all succeed** - Close any open tracking issue, report success, exit
+            6. **If failure**:
                - **Create a GitHub Issue immediately** (before attempting fixes)
                - Analyze the error output
                - Use `/diagnose` to understand root cause
@@ -291,6 +315,7 @@ jobs:
             Bash(gh:*)
             Bash(pip:*)
             Bash(python:*)
+            Bash(npm:*)
             Bash(cat:*)
             Bash(ls:*)
             Bash(mkdir:*)
@@ -301,8 +326,42 @@ jobs:
             --allowedTools "Bash,Edit,Read,Write,Glob,Grep,WebFetch,WebSearch,TodoWrite,Skill"
 
       # =========================================================================
-      # Post-Agent: Upload results regardless of outcome
+      # Post-Agent: Deploy dashboard and upload data to Azure
       # =========================================================================
+      - name: Upload dashboard artifact for Pages
+        if: success()
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dashboard/dist
+
+      - name: Upload dashboard data to Azure
+        if: success()
+        run: |
+          # Create dashboard container if it doesn't exist
+          az storage container create \
+            --account-name $AZURE_STORAGE_ACCOUNT \
+            --name dashboard \
+            --auth-mode key \
+            --account-key $AZURE_STORAGE_KEY \
+            2>/dev/null || true
+
+          # Upload parquet files for backup/other workflows
+          for file in dashboard/src/data/*.parquet; do
+            if [ -f "$file" ]; then
+              FILENAME=$(basename "$file")
+              echo "Uploading $FILENAME to Azure..."
+              az storage blob upload \
+                --account-name $AZURE_STORAGE_ACCOUNT \
+                --container-name dashboard \
+                --name "$FILENAME" \
+                --file "$file" \
+                --overwrite \
+                --auth-mode key \
+                --account-key $AZURE_STORAGE_KEY
+            fi
+          done
+          echo "Dashboard data uploaded to Azure"
+
       - name: Upload DuckDB to Azure
         if: always()
         run: |
@@ -405,3 +464,21 @@ jobs:
                 "severity": "high"
               }' 2>/dev/null
           fi
+
+  # =============================================================================
+  # Deploy Dashboard to GitHub Pages
+  # =============================================================================
+  deploy-dashboard:
+    name: Deploy Dashboard
+    needs: agentic-pipeline
+    runs-on: ubuntu-latest
+    if: success()
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
