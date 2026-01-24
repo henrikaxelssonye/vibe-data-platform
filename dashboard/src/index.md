@@ -33,25 +33,33 @@ const customerMetrics = await db.query(`
   FROM customer_orders
 `);
 
-const metrics = customerMetrics[0];
+// Get first row - convert to array first to get proper scalar values
+const metricsArray = Array.from(customerMetrics);
+const metrics = metricsArray[0];
+
+// Format numbers for display (values are already scalars after Array.from)
+const totalCustomers = Number(metrics?.total_customers ?? 0);
+const activeCustomers = Number(metrics?.active_customers ?? 0);
+const totalRevenue = Number(metrics?.total_revenue ?? 0);
+const totalOrders = Number(metrics?.total_orders ?? 0);
 ```
 
 <div class="grid grid-cols-4">
-  <div class="card">
+  <div class="card kpi-card">
     <h2>Total Customers</h2>
-    <span class="big">${metrics?.total_customers ?? "—"}</span>
+    <div class="kpi-value">${totalCustomers}</div>
   </div>
-  <div class="card">
+  <div class="card kpi-card">
     <h2>Active Customers</h2>
-    <span class="big">${metrics?.active_customers ?? "—"}</span>
+    <div class="kpi-value">${activeCustomers}</div>
   </div>
-  <div class="card">
+  <div class="card kpi-card">
     <h2>Total Revenue</h2>
-    <span class="big">$${metrics?.total_revenue?.toLocaleString() ?? "—"}</span>
+    <div class="kpi-value">$${totalRevenue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
   </div>
-  <div class="card">
+  <div class="card kpi-card">
     <h2>Total Orders</h2>
-    <span class="big">${metrics?.total_orders ?? "—"}</span>
+    <div class="kpi-value">${totalOrders}</div>
   </div>
 </div>
 
@@ -182,6 +190,18 @@ Plot.plot({
   margin: 0 0 0.5rem 0;
 }
 
+.kpi-card {
+  text-align: center;
+}
+
+.kpi-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--theme-foreground-focus);
+  line-height: 1.2;
+  margin-top: 0.5rem;
+}
+
 .grid {
   display: grid;
   gap: 1rem;
@@ -195,6 +215,10 @@ Plot.plot({
 @media (max-width: 768px) {
   .grid-cols-4 {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .kpi-value {
+    font-size: 1.75rem;
   }
 }
 </style>

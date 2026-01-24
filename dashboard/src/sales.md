@@ -9,7 +9,7 @@ Track order trends, product performance, and revenue metrics.
 ```js
 import * as Plot from "npm:@observablehq/plot";
 import {DuckDBClient} from "npm:@observablehq/duckdb";
-import {Inputs} from "npm:@observablehq/inputs";
+import * as Inputs from "npm:@observablehq/inputs";
 ```
 
 ```js
@@ -22,7 +22,7 @@ const db = DuckDBClient.of({
 ## Sales Summary
 
 ```js
-const salesMetrics = await db.query(`
+const salesMetricsResult = await db.query(`
   SELECT
     SUM(total_orders) as total_orders,
     SUM(total_revenue) as total_revenue,
@@ -33,25 +33,37 @@ const salesMetrics = await db.query(`
   FROM customer_orders
 `);
 
-const sales = salesMetrics[0];
+// Convert DuckDB Arrow result to JS array
+const salesMetrics = Array.from(salesMetricsResult);
+const salesRow = salesMetrics[0];
+
+// Convert BigInt/typed values to Numbers
+const sales = {
+  total_orders: Number(salesRow?.total_orders ?? 0),
+  total_revenue: Number(salesRow?.total_revenue ?? 0),
+  completed_orders: Number(salesRow?.completed_orders ?? 0),
+  pending_orders: Number(salesRow?.pending_orders ?? 0),
+  cancelled_orders: Number(salesRow?.cancelled_orders ?? 0),
+  avg_customer_value: Number(salesRow?.avg_customer_value ?? 0)
+};
 ```
 
 <div class="grid grid-cols-4">
   <div class="card">
     <h2>Total Orders</h2>
-    <span class="big">${sales?.total_orders ?? "—"}</span>
+    <span class="big">${sales.total_orders}</span>
   </div>
   <div class="card">
     <h2>Total Revenue</h2>
-    <span class="big">$${sales?.total_revenue?.toLocaleString() ?? "—"}</span>
+    <span class="big">$${sales.total_revenue.toLocaleString()}</span>
   </div>
   <div class="card">
     <h2>Avg Customer Value</h2>
-    <span class="big">$${sales?.avg_customer_value?.toFixed(0) ?? "—"}</span>
+    <span class="big">$${sales.avg_customer_value.toFixed(0)}</span>
   </div>
   <div class="card">
     <h2>Completion Rate</h2>
-    <span class="big">${sales?.total_orders > 0 ? ((sales.completed_orders / sales.total_orders) * 100).toFixed(0) : 0}%</span>
+    <span class="big">${sales.total_orders > 0 ? ((sales.completed_orders / sales.total_orders) * 100).toFixed(0) : 0}%</span>
   </div>
 </div>
 
@@ -109,7 +121,7 @@ Plot.plot({
 ## Revenue by Customer
 
 ```js
-const revenueData = await db.query(`
+const revenueDataResult = await db.query(`
   SELECT
     customer_name,
     total_revenue,
@@ -119,6 +131,9 @@ const revenueData = await db.query(`
   WHERE total_revenue > 0
   ORDER BY total_revenue DESC
 `);
+
+// Convert DuckDB Arrow result to JS array
+const revenueData = Array.from(revenueDataResult);
 ```
 
 ```js

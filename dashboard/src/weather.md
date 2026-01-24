@@ -9,6 +9,7 @@ Weather forecast data from Open-Meteo API for Stockholm, Sweden.
 ```js
 import * as Plot from "npm:@observablehq/plot";
 import {DuckDBClient} from "npm:@observablehq/duckdb";
+import * as Inputs from "npm:@observablehq/inputs";
 ```
 
 ```js
@@ -20,13 +21,14 @@ const db = DuckDBClient.of({
 ## Current Conditions
 
 ```js
-const weather = await db.query(`
+const weatherResult = await db.query(`
   SELECT * FROM weather_daily
   ORDER BY forecast_date
 `);
 
-const today = weather[0];
-const forecast = weather;
+// Convert DuckDB Arrow result to JS array
+const forecast = Array.from(weatherResult);
+const today = forecast[0];
 ```
 
 <div class="grid grid-cols-4">
@@ -121,13 +123,14 @@ Plot.plot({
   title: "Daily Precipitation (mm)",
   width: 800,
   height: 250,
-  x: {type: "utc", label: "Date"},
+  x: {label: "Date"},
   y: {label: "Precipitation (mm)", grid: true},
   marks: [
-    Plot.barY(forecast, {
+    Plot.rectY(forecast, {
       x: "forecast_date",
       y: "precipitation_mm",
       fill: d => d.precipitation_mm > 5 ? "#1e40af" : d.precipitation_mm > 0 ? "#3b82f6" : "#93c5fd",
+      interval: "day",
       tip: true
     }),
     Plot.ruleY([0])
@@ -253,11 +256,11 @@ Inputs.table(forecastTable, {
     comfort: "Comfort"
   },
   format: {
-    date: d => d?.toLocaleDateString() ?? "—",
-    temp_avg: d => d?.toFixed(1) ?? "—",
-    precipitation: d => d?.toFixed(1) ?? "—",
-    wind: d => d?.toFixed(1) ?? "—",
-    comfort: d => d?.toFixed(0) ?? "—",
+    date: d => d ? new Date(d).toLocaleDateString() : "—",
+    temp_avg: d => d != null ? Number(d).toFixed(1) : "—",
+    precipitation: d => d != null ? Number(d).toFixed(1) : "—",
+    wind: d => d != null ? Number(d).toFixed(1) : "—",
+    comfort: d => d != null ? Number(d).toFixed(0) : "—",
     is_weekend: d => d ? "Yes" : "No"
   }
 })

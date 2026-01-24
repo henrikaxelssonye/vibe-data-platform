@@ -9,7 +9,7 @@ Deep dive into customer behavior, segmentation, and lifetime value.
 ```js
 import * as Plot from "npm:@observablehq/plot";
 import {DuckDBClient} from "npm:@observablehq/duckdb";
-import {Inputs} from "npm:@observablehq/inputs";
+import * as Inputs from "npm:@observablehq/inputs";
 ```
 
 ```js
@@ -22,10 +22,13 @@ const db = DuckDBClient.of({
 ## Customer Overview
 
 ```js
-const allCustomers = await db.query(`
+const allCustomersResult = await db.query(`
   SELECT * FROM customer_orders
   ORDER BY total_revenue DESC
 `);
+
+// Convert DuckDB Arrow result to JS array
+const allCustomers = Array.from(allCustomersResult);
 
 const segments = [...new Set(allCustomers.map(d => d.customer_segment))];
 ```
