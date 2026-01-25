@@ -1,0 +1,470 @@
+/* Dark Horse Analytics Inspired Theme
+ * Premium dark theme with gold accents
+ * Clean, minimalist data visualization aesthetic
+ */
+
+/* ===========================
+   CSS Custom Properties
+   =========================== */
+:root {
+  /* Dark Horse color palette */
+  --dh-bg-dark: #19212a;
+  --dh-bg-medium: #243140;
+  --dh-bg-card: #2a3a4d;
+  --dh-bg-hover: #344457;
+  --dh-text-primary: #f1f1ef;
+  --dh-text-secondary: #a0aab8;
+  --dh-text-muted: #6b7a8c;
+  --dh-accent-gold: #c6b356;
+  --dh-accent-gold-dim: #9d8e45;
+  --dh-border: #3a4a5d;
+  --dh-success: #4ade80;
+  --dh-warning: #fbbf24;
+  --dh-danger: #f87171;
+  --dh-info: #60a5fa;
+
+  /* Chart colors - muted, sophisticated palette */
+  --dh-chart-1: #c6b356;
+  --dh-chart-2: #60a5fa;
+  --dh-chart-3: #4ade80;
+  --dh-chart-4: #f472b6;
+  --dh-chart-5: #a78bfa;
+  --dh-chart-6: #fb923c;
+
+  /* Typography */
+  --dh-font-display: 'Montserrat', system-ui, sans-serif;
+  --dh-font-body: 'Inter', system-ui, sans-serif;
+
+  /* Spacing scale */
+  --dh-space-xs: 0.25rem;
+  --dh-space-sm: 0.5rem;
+  --dh-space-md: 1rem;
+  --dh-space-lg: 1.5rem;
+  --dh-space-xl: 2rem;
+  --dh-space-2xl: 3rem;
+  --dh-space-3xl: 4rem;
+
+  /* Border radius */
+  --dh-radius-sm: 4px;
+  --dh-radius-md: 8px;
+  --dh-radius-lg: 12px;
+
+  /* Shadows */
+  --dh-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --dh-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --dh-shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+/* ===========================
+   Base Styles
+   =========================== */
+body {
+  background: var(--dh-bg-dark) !important;
+  color: var(--dh-text-primary) !important;
+  font-family: var(--dh-font-body) !important;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Override Observable Framework defaults */
+.observablehq {
+  --theme-background: var(--dh-bg-dark) !important;
+  --theme-background-alt: var(--dh-bg-card) !important;
+  --theme-foreground: var(--dh-text-primary) !important;
+  --theme-foreground-muted: var(--dh-text-secondary) !important;
+  --theme-foreground-faint: var(--dh-text-muted) !important;
+  --theme-foreground-focus: var(--dh-accent-gold) !important;
+}
+
+/* ===========================
+   Typography
+   =========================== */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--dh-font-display) !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.02em;
+  color: var(--dh-text-primary) !important;
+  margin-top: var(--dh-space-xl);
+  margin-bottom: var(--dh-space-md);
+}
+
+h1 {
+  font-size: 2.25rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em;
+  border-bottom: 2px solid var(--dh-accent-gold);
+  padding-bottom: var(--dh-space-sm);
+  margin-bottom: var(--dh-space-lg);
+}
+
+h2 {
+  font-size: 1.5rem !important;
+  color: var(--dh-text-primary) !important;
+  margin-top: var(--dh-space-2xl);
+}
+
+h3 {
+  font-size: 1.125rem !important;
+  color: var(--dh-text-secondary) !important;
+}
+
+p {
+  color: var(--dh-text-secondary);
+  max-width: 65ch;
+}
+
+a {
+  color: var(--dh-accent-gold) !important;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--dh-text-primary) !important;
+}
+
+/* ===========================
+   Cards & Containers
+   =========================== */
+.card {
+  background: var(--dh-bg-card) !important;
+  border: 1px solid var(--dh-border) !important;
+  border-radius: var(--dh-radius-lg) !important;
+  padding: var(--dh-space-lg) !important;
+  transition: all 0.2s ease;
+  box-shadow: var(--dh-shadow-sm);
+}
+
+.card:hover {
+  border-color: var(--dh-accent-gold-dim) !important;
+  box-shadow: var(--dh-shadow-md);
+}
+
+.card h2 {
+  font-family: var(--dh-font-display) !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--dh-text-muted) !important;
+  margin: 0 0 var(--dh-space-sm) 0 !important;
+}
+
+/* ===========================
+   KPI Cards
+   =========================== */
+.kpi-card {
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--dh-accent-gold), var(--dh-accent-gold-dim));
+}
+
+.kpi-value {
+  font-family: var(--dh-font-display) !important;
+  font-size: 2.5rem !important;
+  font-weight: 700 !important;
+  color: var(--dh-accent-gold) !important;
+  line-height: 1.1;
+  margin-top: var(--dh-space-sm);
+}
+
+.kpi-card small {
+  display: block;
+  margin-top: var(--dh-space-xs);
+  color: var(--dh-text-muted);
+  font-size: 0.75rem;
+}
+
+.big {
+  font-family: var(--dh-font-display) !important;
+  font-size: 2rem !important;
+  font-weight: 700 !important;
+  color: var(--dh-accent-gold) !important;
+}
+
+/* ===========================
+   Grid Layout
+   =========================== */
+.grid {
+  display: grid;
+  gap: var(--dh-space-lg);
+  margin: var(--dh-space-xl) 0;
+}
+
+.grid-cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.grid-cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.grid-cols-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 1024px) {
+  .grid-cols-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .grid-cols-2,
+  .grid-cols-3,
+  .grid-cols-4 {
+    grid-template-columns: 1fr;
+  }
+
+  .kpi-value, .big {
+    font-size: 1.75rem !important;
+  }
+}
+
+/* ===========================
+   Charts & Visualizations
+   =========================== */
+figure {
+  background: var(--dh-bg-card);
+  border: 1px solid var(--dh-border);
+  border-radius: var(--dh-radius-lg);
+  padding: var(--dh-space-lg);
+  margin: var(--dh-space-lg) 0;
+}
+
+/* Override Observable Plot styles */
+svg[class^="plot"] {
+  font-family: var(--dh-font-body) !important;
+}
+
+/* Chart title styling */
+svg text[aria-label] {
+  font-family: var(--dh-font-display) !important;
+  fill: var(--dh-text-primary) !important;
+  font-weight: 600 !important;
+}
+
+/* Axis labels */
+.plot text {
+  fill: var(--dh-text-secondary) !important;
+  font-size: 11px !important;
+}
+
+/* Grid lines - very subtle */
+.plot line[stroke="#ccc"],
+.plot line[stroke="#ddd"],
+.plot line[stroke="#eee"] {
+  stroke: var(--dh-border) !important;
+  stroke-opacity: 0.3 !important;
+}
+
+/* ===========================
+   Tables
+   =========================== */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  background: var(--dh-bg-card);
+  border-radius: var(--dh-radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--dh-border);
+}
+
+thead {
+  background: var(--dh-bg-medium);
+}
+
+th {
+  font-family: var(--dh-font-display);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dh-text-muted);
+  padding: var(--dh-space-md);
+  text-align: left;
+  border-bottom: 2px solid var(--dh-border);
+}
+
+td {
+  padding: var(--dh-space-md);
+  border-bottom: 1px solid var(--dh-border);
+  color: var(--dh-text-secondary);
+}
+
+tr:hover td {
+  background: var(--dh-bg-hover);
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+/* ===========================
+   Form Elements
+   =========================== */
+input, select, button {
+  font-family: var(--dh-font-body);
+  background: var(--dh-bg-medium);
+  border: 1px solid var(--dh-border);
+  border-radius: var(--dh-radius-sm);
+  color: var(--dh-text-primary);
+  padding: var(--dh-space-sm) var(--dh-space-md);
+  transition: all 0.2s ease;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--dh-accent-gold);
+  box-shadow: 0 0 0 2px rgba(198, 179, 86, 0.2);
+}
+
+button {
+  background: var(--dh-accent-gold);
+  color: var(--dh-bg-dark);
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+button:hover {
+  background: var(--dh-text-primary);
+}
+
+/* Observable Inputs styling */
+form label {
+  color: var(--dh-text-secondary) !important;
+  font-weight: 500;
+}
+
+/* ===========================
+   Tips & Notes
+   =========================== */
+.tip, .note {
+  background: var(--dh-bg-medium) !important;
+  border-left: 4px solid var(--dh-accent-gold) !important;
+  border-radius: 0 var(--dh-radius-md) var(--dh-radius-md) 0 !important;
+  padding: var(--dh-space-md) var(--dh-space-lg) !important;
+  margin: var(--dh-space-lg) 0 !important;
+  color: var(--dh-text-secondary) !important;
+}
+
+.tip strong, .note strong {
+  color: var(--dh-accent-gold) !important;
+}
+
+/* ===========================
+   Navigation & Header
+   =========================== */
+header, nav {
+  background: var(--dh-bg-medium) !important;
+  border-bottom: 1px solid var(--dh-border);
+}
+
+nav a {
+  color: var(--dh-text-secondary) !important;
+  font-weight: 500;
+  padding: var(--dh-space-sm) var(--dh-space-md);
+  border-radius: var(--dh-radius-sm);
+  transition: all 0.2s ease;
+}
+
+nav a:hover, nav a[aria-current="page"] {
+  color: var(--dh-accent-gold) !important;
+  background: var(--dh-bg-hover);
+}
+
+/* Sidebar navigation */
+aside {
+  background: var(--dh-bg-medium) !important;
+  border-right: 1px solid var(--dh-border) !important;
+}
+
+/* ===========================
+   Footer
+   =========================== */
+footer {
+  background: var(--dh-bg-medium) !important;
+  border-top: 1px solid var(--dh-border);
+  color: var(--dh-text-muted) !important;
+  font-size: 0.75rem;
+  padding: var(--dh-space-lg);
+  text-align: center;
+}
+
+/* ===========================
+   Scrollbar
+   =========================== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--dh-bg-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--dh-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--dh-text-muted);
+}
+
+/* ===========================
+   Status Colors
+   =========================== */
+.status-success { color: var(--dh-success) !important; }
+.status-warning { color: var(--dh-warning) !important; }
+.status-danger { color: var(--dh-danger) !important; }
+.status-info { color: var(--dh-info) !important; }
+
+/* ===========================
+   Utility Classes
+   =========================== */
+.text-gold { color: var(--dh-accent-gold) !important; }
+.text-muted { color: var(--dh-text-muted) !important; }
+.text-center { text-align: center; }
+.mt-0 { margin-top: 0 !important; }
+.mb-0 { margin-bottom: 0 !important; }
+
+/* ===========================
+   Animation
+   =========================== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.card, figure {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* ===========================
+   Print Styles
+   =========================== */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .card {
+    border: 1px solid #ccc !important;
+    background: white !important;
+  }
+}

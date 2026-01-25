@@ -2,13 +2,36 @@
 title: Overview
 ---
 
-# Vibe Data Platform Dashboard
+# Vibe Data Platform
 
-Welcome to the Vibe Data Platform analytics dashboard. This dashboard provides insights into customer behavior, sales performance, and weather patterns.
+Executive summary of customer, sales, and weather metrics.
 
 ```js
 import * as Plot from "npm:@observablehq/plot";
 import {DuckDBClient} from "npm:@observablehq/duckdb";
+
+// Dark Horse Analytics color palette
+const dhColors = {
+  gold: "#c6b356",
+  goldDim: "#9d8e45",
+  blue: "#60a5fa",
+  green: "#4ade80",
+  pink: "#f472b6",
+  purple: "#a78bfa",
+  orange: "#fb923c",
+  text: "#f1f1ef",
+  textMuted: "#a0aab8",
+  bgCard: "#2a3a4d",
+  border: "#3a4a5d"
+};
+
+// Segment color scale
+const segmentColors = {
+  "VIP": dhColors.gold,
+  "Regular": dhColors.blue,
+  "New": dhColors.green,
+  "Inactive": dhColors.purple
+};
 ```
 
 ```js
@@ -78,20 +101,51 @@ const segments = await db.query(`
 
 ```js
 Plot.plot({
-  title: "Customers by Segment",
   width: 500,
-  height: 300,
+  height: 280,
   marginLeft: 100,
-  x: {label: "Number of Customers"},
-  y: {label: null},
+  marginTop: 30,
+  marginBottom: 40,
+  style: {
+    background: "transparent",
+    color: dhColors.text,
+    fontSize: "12px",
+    fontFamily: "'Inter', system-ui, sans-serif"
+  },
+  x: {
+    label: "Number of Customers",
+    labelOffset: 36,
+    tickFormat: "d",
+    grid: true,
+    line: false,
+    tickSize: 0
+  },
+  y: {
+    label: null,
+    tickSize: 0,
+    line: false
+  },
   marks: [
     Plot.barX(segments, {
       y: "customer_segment",
       x: "count",
-      fill: "customer_segment",
-      tip: true
+      fill: d => segmentColors[d.customer_segment] || dhColors.gold,
+      rx: 3,
+      tip: {
+        format: {
+          x: d => d.toLocaleString(),
+          fill: false
+        }
+      }
     }),
-    Plot.ruleX([0])
+    Plot.text(segments, {
+      y: "customer_segment",
+      x: "count",
+      text: d => d.count.toLocaleString(),
+      dx: 8,
+      fill: dhColors.textMuted,
+      fontSize: 11
+    })
   ]
 })
 ```
@@ -112,21 +166,53 @@ const revenueByCustomer = await db.query(`
 
 ```js
 Plot.plot({
-  title: "Top Customers by Revenue",
   width: 600,
-  height: 300,
-  marginLeft: 80,
-  x: {label: "Revenue ($)", grid: true},
-  y: {label: null},
+  height: 320,
+  marginLeft: 90,
+  marginTop: 30,
+  marginBottom: 40,
+  marginRight: 60,
+  style: {
+    background: "transparent",
+    color: dhColors.text,
+    fontSize: "12px",
+    fontFamily: "'Inter', system-ui, sans-serif"
+  },
+  x: {
+    label: "Revenue ($)",
+    labelOffset: 36,
+    tickFormat: d => "$" + (d/1000).toFixed(0) + "k",
+    grid: true,
+    line: false,
+    tickSize: 0
+  },
+  y: {
+    label: null,
+    tickSize: 0,
+    line: false
+  },
   marks: [
     Plot.barX(revenueByCustomer, {
       y: "customer_name",
       x: "total_revenue",
-      fill: "steelblue",
-      tip: true,
-      sort: {y: "-x"}
+      fill: dhColors.gold,
+      rx: 3,
+      sort: {y: "-x"},
+      tip: {
+        format: {
+          x: d => "$" + d.toLocaleString(),
+          fill: false
+        }
+      }
     }),
-    Plot.ruleX([0])
+    Plot.text(revenueByCustomer, {
+      y: "customer_name",
+      x: "total_revenue",
+      text: d => "$" + (d.total_revenue/1000).toFixed(1) + "k",
+      dx: 8,
+      fill: dhColors.textMuted,
+      fontSize: 10
+    })
   ]
 })
 ```
@@ -148,14 +234,64 @@ const weather = await db.query(`
 
 ```js
 Plot.plot({
-  title: "7-Day Weather Forecast",
   width: 700,
-  height: 250,
-  x: {type: "utc", label: "Date"},
-  y: {label: "Temperature (°C)", grid: true},
+  height: 260,
+  marginTop: 30,
+  marginBottom: 45,
+  marginLeft: 50,
+  marginRight: 30,
+  style: {
+    background: "transparent",
+    color: dhColors.text,
+    fontSize: "12px",
+    fontFamily: "'Inter', system-ui, sans-serif"
+  },
+  x: {
+    type: "utc",
+    label: "Date",
+    labelOffset: 38,
+    tickFormat: d => d.toLocaleDateString('en', {weekday: 'short', month: 'short', day: 'numeric'}),
+    line: false,
+    tickSize: 0
+  },
+  y: {
+    label: "Temperature (°C)",
+    labelOffset: 40,
+    grid: true,
+    line: false,
+    tickSize: 0
+  },
   marks: [
-    Plot.lineY(weather, {x: "forecast_date", y: "temperature_avg", stroke: "orange", strokeWidth: 2}),
-    Plot.dot(weather, {x: "forecast_date", y: "temperature_avg", fill: "orange", tip: true})
+    Plot.areaY(weather, {
+      x: "forecast_date",
+      y: "temperature_avg",
+      fill: dhColors.gold,
+      fillOpacity: 0.15,
+      curve: "catmull-rom"
+    }),
+    Plot.lineY(weather, {
+      x: "forecast_date",
+      y: "temperature_avg",
+      stroke: dhColors.gold,
+      strokeWidth: 3,
+      curve: "catmull-rom"
+    }),
+    Plot.dot(weather, {
+      x: "forecast_date",
+      y: "temperature_avg",
+      fill: dhColors.gold,
+      stroke: dhColors.bgCard,
+      strokeWidth: 2,
+      r: 6,
+      tip: {
+        format: {
+          x: d => d.toLocaleDateString('en', {weekday: 'long', month: 'long', day: 'numeric'}),
+          y: d => d.toFixed(1) + "°C",
+          fill: false,
+          stroke: false
+        }
+      }
+    })
   ]
 })
 ```
@@ -169,56 +305,3 @@ Plot.plot({
 **Last Updated**: Data refreshes automatically when the dbt pipeline runs.
 
 </div>
-
-<style>
-.big {
-  font-size: 2.5rem;
-  font-weight: bold;
-  color: var(--theme-foreground-focus);
-}
-
-.card {
-  padding: 1.5rem;
-  background: var(--theme-background-alt);
-  border-radius: 8px;
-}
-
-.card h2 {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--theme-foreground-muted);
-  margin: 0 0 0.5rem 0;
-}
-
-.kpi-card {
-  text-align: center;
-}
-
-.kpi-value {
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: var(--theme-foreground-focus);
-  line-height: 1.2;
-  margin-top: 0.5rem;
-}
-
-.grid {
-  display: grid;
-  gap: 1rem;
-  margin: 1.5rem 0;
-}
-
-.grid-cols-4 {
-  grid-template-columns: repeat(4, 1fr);
-}
-
-@media (max-width: 768px) {
-  .grid-cols-4 {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .kpi-value {
-    font-size: 1.75rem;
-  }
-}
-</style>

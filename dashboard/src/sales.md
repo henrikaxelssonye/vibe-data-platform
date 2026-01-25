@@ -10,6 +10,31 @@ Track order trends, product performance, and revenue metrics.
 import * as Plot from "npm:@observablehq/plot";
 import {DuckDBClient} from "npm:@observablehq/duckdb";
 import * as Inputs from "npm:@observablehq/inputs";
+
+// Dark Horse Analytics color palette
+const dhColors = {
+  gold: "#c6b356",
+  goldDim: "#9d8e45",
+  blue: "#60a5fa",
+  green: "#4ade80",
+  pink: "#f472b6",
+  purple: "#a78bfa",
+  orange: "#fb923c",
+  text: "#f1f1ef",
+  textMuted: "#a0aab8",
+  bgCard: "#2a3a4d",
+  border: "#3a4a5d",
+  success: "#4ade80",
+  warning: "#fbbf24",
+  danger: "#f87171"
+};
+
+const segmentColors = {
+  "VIP": dhColors.gold,
+  "Regular": dhColors.blue,
+  "New": dhColors.green,
+  "Inactive": dhColors.purple
+};
 ```
 
 ```js
@@ -71,9 +96,9 @@ const sales = {
 
 ```js
 const statusData = [
-  { status: "Completed", count: sales?.completed_orders ?? 0, color: "#22c55e" },
-  { status: "Pending", count: sales?.pending_orders ?? 0, color: "#f59e0b" },
-  { status: "Cancelled", count: sales?.cancelled_orders ?? 0, color: "#ef4444" }
+  { status: "Completed", count: sales?.completed_orders ?? 0, color: dhColors.success },
+  { status: "Pending", count: sales?.pending_orders ?? 0, color: dhColors.warning },
+  { status: "Cancelled", count: sales?.cancelled_orders ?? 0, color: dhColors.danger }
 ].filter(d => d.count > 0);
 ```
 
@@ -81,36 +106,101 @@ const statusData = [
 
 ```js
 Plot.plot({
-  title: "Orders by Status",
   width: 400,
-  height: 300,
+  height: 280,
+  marginTop: 20,
+  marginBottom: 50,
+  style: {
+    background: "transparent",
+    color: dhColors.text,
+    fontSize: "12px",
+    fontFamily: "'Inter', system-ui, sans-serif"
+  },
+  x: {
+    label: null,
+    tickSize: 0,
+    line: false
+  },
+  y: {
+    label: "Number of Orders",
+    grid: true,
+    line: false,
+    tickSize: 0
+  },
   marks: [
     Plot.barY(statusData, {
       x: "status",
       y: "count",
       fill: "color",
-      tip: true
+      rx: 4,
+      tip: {
+        format: {
+          y: d => d.toLocaleString() + " orders",
+          fill: false
+        }
+      }
     }),
-    Plot.ruleY([0])
+    Plot.text(statusData, {
+      x: "status",
+      y: "count",
+      text: d => d.count.toLocaleString(),
+      dy: -12,
+      fill: dhColors.textMuted,
+      fontSize: 13,
+      fontWeight: 600
+    })
   ]
 })
 ```
 
 ```js
 Plot.plot({
-  title: "Status Distribution",
   width: 400,
-  height: 300,
+  height: 280,
+  marginTop: 20,
+  marginBottom: 50,
+  marginLeft: 20,
+  marginRight: 20,
+  style: {
+    background: "transparent",
+    color: dhColors.text,
+    fontSize: "12px",
+    fontFamily: "'Inter', system-ui, sans-serif"
+  },
+  x: {
+    label: null,
+    tickSize: 0,
+    line: false,
+    axis: null
+  },
+  y: {
+    label: null,
+    axis: null
+  },
   marks: [
     Plot.barX(statusData, Plot.stackX({
       x: "count",
       fill: "status",
-      tip: true
+      rx: 4,
+      inset: 0.5,
+      tip: {
+        format: {
+          x: d => d.toLocaleString() + " orders",
+          fill: false
+        }
+      }
+    })),
+    Plot.text(statusData, Plot.stackX({
+      x: "count",
+      text: d => d.status + "\n" + d.count,
+      fill: dhColors.bgCard,
+      fontSize: 11,
+      fontWeight: 600
     }))
   ],
   color: {
     domain: ["Completed", "Pending", "Cancelled"],
-    range: ["#22c55e", "#f59e0b", "#ef4444"],
+    range: [dhColors.success, dhColors.warning, dhColors.danger],
     legend: true
   }
 })
@@ -138,22 +228,58 @@ const revenueData = Array.from(revenueDataResult);
 
 ```js
 Plot.plot({
-  title: "Revenue Distribution by Customer",
   width: 700,
-  height: 350,
+  height: 340,
   marginLeft: 100,
-  x: {label: "Revenue ($)", grid: true},
-  y: {label: null},
-  color: {legend: true},
+  marginTop: 20,
+  marginBottom: 45,
+  marginRight: 60,
+  style: {
+    background: "transparent",
+    color: dhColors.text,
+    fontSize: "12px",
+    fontFamily: "'Inter', system-ui, sans-serif"
+  },
+  x: {
+    label: "Revenue ($)",
+    labelOffset: 38,
+    grid: true,
+    line: false,
+    tickSize: 0,
+    tickFormat: d => "$" + (d/1000).toFixed(0) + "k"
+  },
+  y: {
+    label: null,
+    tickSize: 0,
+    line: false
+  },
+  color: {
+    legend: true,
+    domain: ["VIP", "Regular", "New", "Inactive"],
+    range: [dhColors.gold, dhColors.blue, dhColors.green, dhColors.purple]
+  },
   marks: [
     Plot.barX(revenueData, {
       y: "customer_name",
       x: "total_revenue",
       fill: "customer_segment",
-      tip: true,
-      sort: {y: "-x"}
+      rx: 3,
+      sort: {y: "-x"},
+      tip: {
+        format: {
+          x: d => "$" + d.toLocaleString(),
+          fill: false
+        }
+      }
     }),
-    Plot.ruleX([0])
+    Plot.text(revenueData.slice(0, 5), {
+      y: "customer_name",
+      x: "total_revenue",
+      text: d => "$" + (d.total_revenue/1000).toFixed(1) + "k",
+      dx: 8,
+      fill: dhColors.textMuted,
+      fontSize: 10
+    })
   ]
 })
 ```
@@ -162,21 +288,52 @@ Plot.plot({
 
 ```js
 Plot.plot({
-  title: "Order Volume by Customer",
   width: 700,
-  height: 350,
+  height: 340,
   marginLeft: 100,
-  x: {label: "Number of Orders", grid: true},
-  y: {label: null},
+  marginTop: 20,
+  marginBottom: 45,
+  marginRight: 50,
+  style: {
+    background: "transparent",
+    color: dhColors.text,
+    fontSize: "12px",
+    fontFamily: "'Inter', system-ui, sans-serif"
+  },
+  x: {
+    label: "Number of Orders",
+    labelOffset: 38,
+    grid: true,
+    line: false,
+    tickSize: 0
+  },
+  y: {
+    label: null,
+    tickSize: 0,
+    line: false
+  },
   marks: [
     Plot.barX(revenueData, {
       y: "customer_name",
       x: "total_orders",
-      fill: "steelblue",
-      tip: true,
-      sort: {y: "-x"}
+      fill: dhColors.blue,
+      rx: 3,
+      sort: {y: "-x"},
+      tip: {
+        format: {
+          x: d => d.toLocaleString() + " orders",
+          fill: false
+        }
+      }
     }),
-    Plot.ruleX([0])
+    Plot.text(revenueData.slice(0, 5), {
+      y: "customer_name",
+      x: "total_orders",
+      text: d => d.total_orders,
+      dx: 8,
+      fill: dhColors.textMuted,
+      fontSize: 10
+    })
   ]
 })
 ```
@@ -229,43 +386,3 @@ Inputs.table(withPct, {
 
 </div>
 
-<style>
-.big {
-  font-size: 2rem;
-  font-weight: bold;
-  color: var(--theme-foreground-focus);
-}
-
-.card {
-  padding: 1.5rem;
-  background: var(--theme-background-alt);
-  border-radius: 8px;
-}
-
-.card h2 {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--theme-foreground-muted);
-  margin: 0 0 0.5rem 0;
-}
-
-.grid {
-  display: grid;
-  gap: 1rem;
-  margin: 1.5rem 0;
-}
-
-.grid-cols-2 {
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.grid-cols-4 {
-  grid-template-columns: repeat(4, 1fr);
-}
-
-@media (max-width: 768px) {
-  .grid-cols-2, .grid-cols-4 {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-</style>

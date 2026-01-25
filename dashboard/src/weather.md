@@ -10,6 +10,25 @@ Weather forecast data from Open-Meteo API for Stockholm, Sweden.
 import * as Plot from "npm:@observablehq/plot";
 import {DuckDBClient} from "npm:@observablehq/duckdb";
 import * as Inputs from "npm:@observablehq/inputs";
+
+// Dark Horse Analytics color palette
+const dhColors = {
+  gold: "#c6b356",
+  goldDim: "#9d8e45",
+  blue: "#60a5fa",
+  green: "#4ade80",
+  pink: "#f472b6",
+  purple: "#a78bfa",
+  orange: "#fb923c",
+  cyan: "#22d3ee",
+  text: "#f1f1ef",
+  textMuted: "#a0aab8",
+  bgCard: "#2a3a4d",
+  border: "#3a4a5d",
+  success: "#4ade80",
+  warning: "#fbbf24",
+  danger: "#f87171"
+};
 ```
 
 ```js
@@ -58,25 +77,48 @@ const today = forecast[0];
 
 ```js
 Plot.plot({
-  title: "Temperature Range (°C)",
   width: 800,
   height: 300,
-  x: {type: "utc", label: "Date", grid: true},
-  y: {label: "Temperature (°C)", grid: true},
+  marginTop: 30,
+  marginBottom: 50,
+  marginLeft: 50,
+  marginRight: 30,
+  style: {
+    background: "transparent",
+    color: dhColors.text,
+    fontSize: "12px",
+    fontFamily: "'Inter', system-ui, sans-serif"
+  },
+  x: {
+    type: "utc",
+    label: "Date",
+    labelOffset: 40,
+    tickFormat: d => d.toLocaleDateString('en', {weekday: 'short', month: 'short', day: 'numeric'}),
+    line: false,
+    tickSize: 0
+  },
+  y: {
+    label: "Temperature (°C)",
+    labelOffset: 40,
+    grid: true,
+    line: false,
+    tickSize: 0
+  },
   marks: [
     // Temperature range area
     Plot.areaY(forecast, {
       x: "forecast_date",
       y1: "temperature_min",
       y2: "temperature_max",
-      fill: "#ff990033",
+      fill: dhColors.gold,
+      fillOpacity: 0.15,
       curve: "catmull-rom"
     }),
     // Average temperature line
     Plot.lineY(forecast, {
       x: "forecast_date",
       y: "temperature_avg",
-      stroke: "#ff9900",
+      stroke: dhColors.gold,
       strokeWidth: 3,
       curve: "catmull-rom"
     }),
@@ -84,12 +126,16 @@ Plot.plot({
     Plot.dot(forecast, {
       x: "forecast_date",
       y: "temperature_avg",
-      fill: "#ff9900",
-      r: 5,
+      fill: dhColors.gold,
+      stroke: dhColors.bgCard,
+      strokeWidth: 2,
+      r: 6,
       tip: {
         format: {
-          x: d => d.toLocaleDateString(),
-          y: d => `${d.toFixed(1)}°C`
+          x: d => d.toLocaleDateString('en', {weekday: 'long', month: 'long', day: 'numeric'}),
+          y: d => d.toFixed(1) + "°C",
+          fill: false,
+          stroke: false
         }
       }
     }),
@@ -97,14 +143,18 @@ Plot.plot({
     Plot.dot(forecast, {
       x: "forecast_date",
       y: "temperature_min",
-      fill: "#0066cc",
-      r: 3
+      fill: dhColors.blue,
+      stroke: dhColors.bgCard,
+      strokeWidth: 1,
+      r: 4
     }),
     Plot.dot(forecast, {
       x: "forecast_date",
       y: "temperature_max",
-      fill: "#cc0000",
-      r: 3
+      fill: dhColors.danger,
+      stroke: dhColors.bgCard,
+      strokeWidth: 1,
+      r: 4
     })
   ]
 })
@@ -112,7 +162,7 @@ Plot.plot({
 
 <div class="tip">
 
-**Legend:** <span style="color: #cc0000;">●</span> Max Temperature | <span style="color: #ff9900;">●</span> Average | <span style="color: #0066cc;">●</span> Min Temperature
+**Legend:** <span style="color: #f87171;">●</span> Max Temperature | <span style="color: #c6b356;">●</span> Average | <span style="color: #60a5fa;">●</span> Min Temperature
 
 </div>
 
@@ -120,20 +170,55 @@ Plot.plot({
 
 ```js
 Plot.plot({
-  title: "Daily Precipitation (mm)",
   width: 800,
   height: 250,
-  x: {label: "Date"},
-  y: {label: "Precipitation (mm)", grid: true},
+  marginTop: 25,
+  marginBottom: 50,
+  marginLeft: 50,
+  marginRight: 30,
+  style: {
+    background: "transparent",
+    color: dhColors.text,
+    fontSize: "12px",
+    fontFamily: "'Inter', system-ui, sans-serif"
+  },
+  x: {
+    label: "Date",
+    labelOffset: 40,
+    tickFormat: d => d.toLocaleDateString('en', {weekday: 'short', day: 'numeric'}),
+    line: false,
+    tickSize: 0
+  },
+  y: {
+    label: "Precipitation (mm)",
+    labelOffset: 40,
+    grid: true,
+    line: false,
+    tickSize: 0
+  },
   marks: [
     Plot.rectY(forecast, {
       x: "forecast_date",
       y: "precipitation_mm",
-      fill: d => d.precipitation_mm > 5 ? "#1e40af" : d.precipitation_mm > 0 ? "#3b82f6" : "#93c5fd",
+      fill: d => d.precipitation_mm > 5 ? dhColors.blue : d.precipitation_mm > 0 ? dhColors.cyan : dhColors.purple,
+      rx: 4,
       interval: "day",
-      tip: true
+      tip: {
+        format: {
+          x: d => d.toLocaleDateString('en', {weekday: 'long', month: 'short', day: 'numeric'}),
+          y: d => d.toFixed(1) + " mm",
+          fill: false
+        }
+      }
     }),
-    Plot.ruleY([0])
+    Plot.text(forecast, {
+      x: "forecast_date",
+      y: "precipitation_mm",
+      text: d => d.precipitation_mm > 0 ? d.precipitation_mm.toFixed(1) : "",
+      dy: -12,
+      fill: dhColors.textMuted,
+      fontSize: 10
+    })
   ]
 })
 ```
@@ -144,29 +229,91 @@ The comfort score combines temperature, precipitation, and wind speed into a sin
 
 ```js
 Plot.plot({
-  title: "Daily Comfort Score",
   width: 800,
-  height: 250,
-  x: {type: "utc", label: "Date"},
-  y: {label: "Comfort Score", domain: [0, 100], grid: true},
+  height: 260,
+  marginTop: 25,
+  marginBottom: 50,
+  marginLeft: 50,
+  marginRight: 30,
+  style: {
+    background: "transparent",
+    color: dhColors.text,
+    fontSize: "12px",
+    fontFamily: "'Inter', system-ui, sans-serif"
+  },
+  x: {
+    type: "utc",
+    label: "Date",
+    labelOffset: 40,
+    tickFormat: d => d.toLocaleDateString('en', {weekday: 'short', day: 'numeric'}),
+    line: false,
+    tickSize: 0
+  },
+  y: {
+    label: "Comfort Score",
+    labelOffset: 40,
+    domain: [0, 100],
+    grid: true,
+    line: false,
+    tickSize: 0
+  },
   marks: [
-    // Comfort zones
-    Plot.ruleY([30], {stroke: "#ef4444", strokeDasharray: "4,4"}),
-    Plot.ruleY([70], {stroke: "#22c55e", strokeDasharray: "4,4"}),
+    // Comfort zone backgrounds
+    Plot.rectY([{y1: 0, y2: 30}], {
+      y1: "y1",
+      y2: "y2",
+      fill: dhColors.danger,
+      fillOpacity: 0.08
+    }),
+    Plot.rectY([{y1: 70, y2: 100}], {
+      y1: "y1",
+      y2: "y2",
+      fill: dhColors.success,
+      fillOpacity: 0.08
+    }),
+    // Comfort zone lines
+    Plot.ruleY([30], {stroke: dhColors.danger, strokeDasharray: "6,4", strokeOpacity: 0.5}),
+    Plot.ruleY([70], {stroke: dhColors.success, strokeDasharray: "6,4", strokeOpacity: 0.5}),
+    // Score area
+    Plot.areaY(forecast, {
+      x: "forecast_date",
+      y: "weather_comfort_score",
+      fill: dhColors.purple,
+      fillOpacity: 0.2,
+      curve: "catmull-rom"
+    }),
     // Score line
     Plot.lineY(forecast, {
       x: "forecast_date",
       y: "weather_comfort_score",
-      stroke: "#8b5cf6",
+      stroke: dhColors.purple,
       strokeWidth: 3,
       curve: "catmull-rom"
     }),
     Plot.dot(forecast, {
       x: "forecast_date",
       y: "weather_comfort_score",
-      fill: d => d.weather_comfort_score >= 70 ? "#22c55e" : d.weather_comfort_score >= 30 ? "#f59e0b" : "#ef4444",
+      fill: d => d.weather_comfort_score >= 70 ? dhColors.success : d.weather_comfort_score >= 30 ? dhColors.warning : dhColors.danger,
+      stroke: dhColors.bgCard,
+      strokeWidth: 2,
       r: 8,
-      tip: true
+      tip: {
+        format: {
+          x: d => d.toLocaleDateString('en', {weekday: 'long', month: 'short', day: 'numeric'}),
+          y: d => d.toFixed(0) + " / 100",
+          fill: false,
+          stroke: false
+        }
+      }
+    }),
+    Plot.text(forecast, {
+      x: "forecast_date",
+      y: "weather_comfort_score",
+      text: d => d.weather_comfort_score.toFixed(0),
+      dy: -15,
+      fill: dhColors.textMuted,
+      fontSize: 10,
+      fontWeight: 600
     })
   ]
 })
@@ -174,7 +321,7 @@ Plot.plot({
 
 <div class="note">
 
-**Comfort Zones:** <span style="color: #22c55e;">●</span> Good (70+) | <span style="color: #f59e0b;">●</span> Moderate (30-70) | <span style="color: #ef4444;">●</span> Poor (<30)
+**Comfort Zones:** <span style="color: #4ade80;">●</span> Good (70+) | <span style="color: #fbbf24;">●</span> Moderate (30-70) | <span style="color: #f87171;">●</span> Poor (<30)
 
 </div>
 
@@ -182,31 +329,71 @@ Plot.plot({
 
 ```js
 Plot.plot({
-  title: "Wind Speed (km/h)",
   width: 800,
   height: 250,
-  x: {type: "utc", label: "Date"},
-  y: {label: "Wind Speed (km/h)", grid: true},
+  marginTop: 25,
+  marginBottom: 50,
+  marginLeft: 50,
+  marginRight: 30,
+  style: {
+    background: "transparent",
+    color: dhColors.text,
+    fontSize: "12px",
+    fontFamily: "'Inter', system-ui, sans-serif"
+  },
+  x: {
+    type: "utc",
+    label: "Date",
+    labelOffset: 40,
+    tickFormat: d => d.toLocaleDateString('en', {weekday: 'short', day: 'numeric'}),
+    line: false,
+    tickSize: 0
+  },
+  y: {
+    label: "Wind Speed (km/h)",
+    labelOffset: 40,
+    grid: true,
+    line: false,
+    tickSize: 0
+  },
   marks: [
     Plot.areaY(forecast, {
       x: "forecast_date",
       y: "wind_speed_avg",
-      fill: "#06b6d4",
-      fillOpacity: 0.3,
+      fill: dhColors.cyan,
+      fillOpacity: 0.2,
       curve: "catmull-rom"
     }),
     Plot.lineY(forecast, {
       x: "forecast_date",
       y: "wind_speed_avg",
-      stroke: "#06b6d4",
-      strokeWidth: 2,
+      stroke: dhColors.cyan,
+      strokeWidth: 3,
       curve: "catmull-rom"
     }),
     Plot.dot(forecast, {
       x: "forecast_date",
       y: "wind_speed_avg",
-      fill: "#06b6d4",
-      tip: true
+      fill: dhColors.cyan,
+      stroke: dhColors.bgCard,
+      strokeWidth: 2,
+      r: 6,
+      tip: {
+        format: {
+          x: d => d.toLocaleDateString('en', {weekday: 'long', month: 'short', day: 'numeric'}),
+          y: d => d.toFixed(1) + " km/h",
+          fill: false,
+          stroke: false
+        }
+      }
+    }),
+    Plot.text(forecast, {
+      x: "forecast_date",
+      y: "wind_speed_avg",
+      text: d => d.wind_speed_avg.toFixed(0),
+      dy: -12,
+      fill: dhColors.textMuted,
+      fontSize: 10
     })
   ]
 })
@@ -274,45 +461,3 @@ Inputs.table(forecastTable, {
 
 </div>
 
-<style>
-.big {
-  font-size: 2rem;
-  font-weight: bold;
-  color: var(--theme-foreground-focus);
-}
-
-.card {
-  padding: 1.5rem;
-  background: var(--theme-background-alt);
-  border-radius: 8px;
-}
-
-.card h2 {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--theme-foreground-muted);
-  margin: 0 0 0.5rem 0;
-}
-
-.card small {
-  display: block;
-  margin-top: 0.25rem;
-  color: var(--theme-foreground-muted);
-}
-
-.grid {
-  display: grid;
-  gap: 1rem;
-  margin: 1.5rem 0;
-}
-
-.grid-cols-4 {
-  grid-template-columns: repeat(4, 1fr);
-}
-
-@media (max-width: 768px) {
-  .grid-cols-4 {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-</style>

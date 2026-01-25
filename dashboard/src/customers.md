@@ -10,6 +10,28 @@ Deep dive into customer behavior, segmentation, and lifetime value.
 import * as Plot from "npm:@observablehq/plot";
 import {DuckDBClient} from "npm:@observablehq/duckdb";
 import * as Inputs from "npm:@observablehq/inputs";
+
+// Dark Horse Analytics color palette
+const dhColors = {
+  gold: "#c6b356",
+  goldDim: "#9d8e45",
+  blue: "#60a5fa",
+  green: "#4ade80",
+  pink: "#f472b6",
+  purple: "#a78bfa",
+  orange: "#fb923c",
+  text: "#f1f1ef",
+  textMuted: "#a0aab8",
+  bgCard: "#2a3a4d",
+  border: "#3a4a5d"
+};
+
+const segmentColors = {
+  "VIP": dhColors.gold,
+  "Regular": dhColors.blue,
+  "New": dhColors.green,
+  "Inactive": dhColors.purple
+};
 ```
 
 ```js
@@ -80,34 +102,99 @@ const segmentData = await db.query(`
 
 ```js
 Plot.plot({
-  title: "Customers by Segment",
   width: 400,
-  height: 300,
+  height: 280,
+  marginTop: 20,
+  marginBottom: 50,
+  style: {
+    background: "transparent",
+    color: dhColors.text,
+    fontSize: "12px",
+    fontFamily: "'Inter', system-ui, sans-serif"
+  },
+  x: {
+    label: null,
+    tickSize: 0,
+    line: false
+  },
+  y: {
+    label: "Customer Count",
+    grid: true,
+    line: false,
+    tickSize: 0
+  },
   marks: [
     Plot.barY(segmentData, {
       x: "customer_segment",
       y: "customer_count",
-      fill: "customer_segment",
-      tip: true
+      fill: d => segmentColors[d.customer_segment] || dhColors.gold,
+      rx: 4,
+      tip: {
+        format: {
+          y: d => d.toLocaleString() + " customers",
+          fill: false
+        }
+      }
     }),
-    Plot.ruleY([0])
+    Plot.text(segmentData, {
+      x: "customer_segment",
+      y: "customer_count",
+      text: d => d.customer_count,
+      dy: -10,
+      fill: dhColors.textMuted,
+      fontSize: 12,
+      fontWeight: 600
+    })
   ]
 })
 ```
 
 ```js
 Plot.plot({
-  title: "Revenue by Segment",
   width: 400,
-  height: 300,
+  height: 280,
+  marginTop: 20,
+  marginBottom: 50,
+  style: {
+    background: "transparent",
+    color: dhColors.text,
+    fontSize: "12px",
+    fontFamily: "'Inter', system-ui, sans-serif"
+  },
+  x: {
+    label: null,
+    tickSize: 0,
+    line: false
+  },
+  y: {
+    label: "Revenue ($)",
+    grid: true,
+    line: false,
+    tickSize: 0,
+    tickFormat: d => "$" + (d/1000).toFixed(0) + "k"
+  },
   marks: [
     Plot.barY(segmentData, {
       x: "customer_segment",
       y: "segment_revenue",
-      fill: "customer_segment",
-      tip: true
+      fill: d => segmentColors[d.customer_segment] || dhColors.gold,
+      rx: 4,
+      tip: {
+        format: {
+          y: d => "$" + d.toLocaleString(),
+          fill: false
+        }
+      }
     }),
-    Plot.ruleY([0])
+    Plot.text(segmentData, {
+      x: "customer_segment",
+      y: "segment_revenue",
+      text: d => "$" + (d.segment_revenue/1000).toFixed(1) + "k",
+      dy: -10,
+      fill: dhColors.textMuted,
+      fontSize: 11,
+      fontWeight: 600
+    })
   ]
 })
 ```
@@ -131,21 +218,52 @@ const byCity = await db.query(`
 
 ```js
 Plot.plot({
-  title: "Customers by City",
   width: 600,
-  height: 250,
+  height: 260,
   marginLeft: 100,
-  x: {label: "Number of Customers", grid: true},
-  y: {label: null},
+  marginTop: 20,
+  marginBottom: 40,
+  marginRight: 50,
+  style: {
+    background: "transparent",
+    color: dhColors.text,
+    fontSize: "12px",
+    fontFamily: "'Inter', system-ui, sans-serif"
+  },
+  x: {
+    label: "Number of Customers",
+    labelOffset: 36,
+    grid: true,
+    line: false,
+    tickSize: 0
+  },
+  y: {
+    label: null,
+    tickSize: 0,
+    line: false
+  },
   marks: [
     Plot.barX(byCity, {
       y: "city",
       x: "customers",
-      fill: "steelblue",
-      tip: true,
-      sort: {y: "-x"}
+      fill: dhColors.blue,
+      rx: 3,
+      sort: {y: "-x"},
+      tip: {
+        format: {
+          x: d => d.toLocaleString() + " customers",
+          fill: false
+        }
+      }
     }),
-    Plot.ruleX([0])
+    Plot.text(byCity, {
+      y: "city",
+      x: "customers",
+      text: d => d.customers,
+      dx: 8,
+      fill: dhColors.textMuted,
+      fontSize: 10
+    })
   ]
 })
 ```
@@ -187,63 +305,56 @@ Inputs.table(customers, {
 
 ```js
 Plot.plot({
-  title: "Customer Value: Orders vs Revenue",
   width: 700,
-  height: 400,
-  grid: true,
-  x: {label: "Total Orders"},
-  y: {label: "Total Revenue ($)"},
-  color: {legend: true},
+  height: 380,
+  marginTop: 30,
+  marginBottom: 50,
+  marginLeft: 70,
+  marginRight: 30,
+  style: {
+    background: "transparent",
+    color: dhColors.text,
+    fontSize: "12px",
+    fontFamily: "'Inter', system-ui, sans-serif"
+  },
+  x: {
+    label: "Total Orders",
+    labelOffset: 40,
+    grid: true,
+    line: false,
+    tickSize: 0
+  },
+  y: {
+    label: "Total Revenue ($)",
+    labelOffset: 55,
+    grid: true,
+    line: false,
+    tickSize: 0,
+    tickFormat: d => "$" + (d/1000).toFixed(0) + "k"
+  },
+  color: {
+    legend: true,
+    domain: ["VIP", "Regular", "New", "Inactive"],
+    range: [dhColors.gold, dhColors.blue, dhColors.green, dhColors.purple]
+  },
   marks: [
     Plot.dot(allCustomers.filter(d => d.total_orders > 0), {
       x: "total_orders",
       y: "total_revenue",
       fill: "customer_segment",
-      r: 8,
-      tip: true,
-      title: d => `${d.customer_name}\n${d.total_orders} orders\n$${d.total_revenue}`
+      stroke: dhColors.bgCard,
+      strokeWidth: 2,
+      r: 10,
+      fillOpacity: 0.85,
+      tip: {
+        format: {
+          x: d => d + " orders",
+          y: d => "$" + d.toLocaleString(),
+          fill: false
+        }
+      }
     })
   ]
 })
 ```
 
-<style>
-.big {
-  font-size: 2rem;
-  font-weight: bold;
-  color: var(--theme-foreground-focus);
-}
-
-.card {
-  padding: 1.5rem;
-  background: var(--theme-background-alt);
-  border-radius: 8px;
-}
-
-.card h2 {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--theme-foreground-muted);
-  margin: 0 0 0.5rem 0;
-}
-
-.grid {
-  display: grid;
-  gap: 1rem;
-  margin: 1.5rem 0;
-}
-
-.grid-cols-2 {
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.grid-cols-3 {
-  grid-template-columns: repeat(3, 1fr);
-}
-
-@media (max-width: 768px) {
-  .grid-cols-2, .grid-cols-3 {
-    grid-template-columns: 1fr;
-  }
-}
-</style>
