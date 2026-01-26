@@ -165,8 +165,8 @@ jobs:
             # Step 2: Run dbt pipeline (subshell keeps us in repo root)
             (cd dbt && dbt ${{ inputs.dbt_command || 'build' }}${{ inputs.dbt_select && format(' --select {0}', inputs.dbt_select) || '' }}${{ inputs.full_refresh == 'true' && ' --full-refresh' || '' }})
 
-            # Step 3: Export dashboard data (from repo root)
-            python scripts/export_dashboard_data.py
+            # Step 3: Copy DuckDB to dashboard (from repo root)
+            cp data/processed/vibe.duckdb dashboard/src/data/vibe.duckdb
 
             # Step 4: Build dashboard (subshell keeps us in repo root)
             (cd dashboard && npm run build)
@@ -195,7 +195,7 @@ jobs:
 
             1. **Extract API data** - Run `python scripts/extract_api.py` for fresh data
             2. **Run the dbt pipeline** - Execute the dbt command
-            3. **Export dashboard data** - Run `python scripts/export_dashboard_data.py`
+            3. **Copy DuckDB to dashboard** - Run `cp data/processed/vibe.duckdb dashboard/src/data/vibe.duckdb`
             4. **Build dashboard** - Run `cd dashboard && npm run build`
             5. **If all succeed** - Close any open tracking issue, report success, exit
             6. **If failure**:
@@ -336,7 +336,7 @@ jobs:
         with:
           path: dashboard/dist
 
-      - name: Upload dashboard data to Azure
+      - name: Upload dashboard DuckDB to Azure
         if: success()
         run: |
           # Create dashboard container if it doesn't exist
@@ -347,22 +347,19 @@ jobs:
             --account-key $AZURE_STORAGE_KEY \
             2>/dev/null || true
 
-          # Upload parquet files for backup/other workflows
-          for file in dashboard/src/data/*.parquet; do
-            if [ -f "$file" ]; then
-              FILENAME=$(basename "$file")
-              echo "Uploading $FILENAME to Azure..."
-              az storage blob upload \
-                --account-name $AZURE_STORAGE_ACCOUNT \
-                --container-name dashboard \
-                --name "$FILENAME" \
-                --file "$file" \
-                --overwrite \
-                --auth-mode key \
-                --account-key $AZURE_STORAGE_KEY
-            fi
-          done
-          echo "Dashboard data uploaded to Azure"
+          # Upload DuckDB file for backup/other workflows
+          if [ -f "dashboard/src/data/vibe.duckdb" ]; then
+            echo "Uploading vibe.duckdb to Azure..."
+            az storage blob upload \
+              --account-name $AZURE_STORAGE_ACCOUNT \
+              --container-name dashboard \
+              --name "vibe.duckdb" \
+              --file "dashboard/src/data/vibe.duckdb" \
+              --overwrite \
+              --auth-mode key \
+              --account-key $AZURE_STORAGE_KEY
+            echo "Dashboard DuckDB uploaded to Azure"
+          fi
 
       - name: Upload DuckDB to Azure
         if: always()

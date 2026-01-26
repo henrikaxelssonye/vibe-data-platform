@@ -35,9 +35,9 @@ const segmentColors = {
 ```
 
 ```js
+// Initialize DuckDB with the database file directly
 const db = DuckDBClient.of({
-  customer_orders: FileAttachment("data/customer_orders.parquet"),
-  orders_summary: FileAttachment("data/orders_summary.parquet")
+  vibe: FileAttachment("data/vibe.duckdb")
 });
 ```
 
@@ -45,7 +45,7 @@ const db = DuckDBClient.of({
 
 ```js
 const allCustomersResult = await db.query(`
-  SELECT * FROM customer_orders
+  SELECT * FROM vibe.customer_orders
   ORDER BY total_revenue DESC
 `);
 
@@ -92,7 +92,7 @@ const segmentData = await db.query(`
     COUNT(*) as customer_count,
     SUM(total_revenue) as segment_revenue,
     AVG(total_orders) as avg_orders
-  FROM customer_orders
+  FROM vibe.customer_orders
   GROUP BY customer_segment
   ORDER BY segment_revenue DESC
 `);
@@ -210,7 +210,7 @@ const byCity = await db.query(`
     country,
     COUNT(*) as customers,
     SUM(total_revenue) as revenue
-  FROM customer_orders
+  FROM vibe.customer_orders
   GROUP BY city, country
   ORDER BY revenue DESC
 `);

@@ -35,11 +35,9 @@ const segmentColors = {
 ```
 
 ```js
-// Initialize DuckDB with our data files
+// Initialize DuckDB with the database file directly
 const db = DuckDBClient.of({
-  customer_orders: FileAttachment("data/customer_orders.parquet"),
-  orders_summary: FileAttachment("data/orders_summary.parquet"),
-  weather_daily: FileAttachment("data/weather_daily.parquet")
+  vibe: FileAttachment("data/vibe.duckdb")
 });
 ```
 
@@ -53,7 +51,7 @@ const customerMetrics = await db.query(`
     COUNT(CASE WHEN total_orders > 0 THEN 1 END) as active_customers,
     SUM(total_revenue) as total_revenue,
     SUM(total_orders) as total_orders
-  FROM customer_orders
+  FROM vibe.customer_orders
 `);
 
 // Get first row - convert to array first to get proper scalar values
@@ -93,7 +91,7 @@ const segments = await db.query(`
   SELECT
     customer_segment,
     COUNT(*) as count
-  FROM customer_orders
+  FROM vibe.customer_orders
   GROUP BY customer_segment
   ORDER BY count DESC
 `);
@@ -157,7 +155,7 @@ const revenueByCustomer = await db.query(`
   SELECT
     customer_name,
     total_revenue
-  FROM customer_orders
+  FROM vibe.customer_orders
   WHERE total_revenue > 0
   ORDER BY total_revenue DESC
   LIMIT 10
@@ -223,10 +221,10 @@ Plot.plot({
 const weather = await db.query(`
   SELECT
     forecast_date,
-    temperature_avg,
+    temperature_avg_c,
     precipitation_mm,
     weather_comfort_score
-  FROM weather_daily
+  FROM vibe.weather_daily
   ORDER BY forecast_date
   LIMIT 7
 `);
@@ -264,21 +262,21 @@ Plot.plot({
   marks: [
     Plot.areaY(weather, {
       x: "forecast_date",
-      y: "temperature_avg",
+      y: "temperature_avg_c",
       fill: dhColors.gold,
       fillOpacity: 0.15,
       curve: "catmull-rom"
     }),
     Plot.lineY(weather, {
       x: "forecast_date",
-      y: "temperature_avg",
+      y: "temperature_avg_c",
       stroke: dhColors.gold,
       strokeWidth: 3,
       curve: "catmull-rom"
     }),
     Plot.dot(weather, {
       x: "forecast_date",
-      y: "temperature_avg",
+      y: "temperature_avg_c",
       fill: dhColors.gold,
       stroke: dhColors.bgCard,
       strokeWidth: 2,

@@ -34,7 +34,7 @@ vibe-data-platform/
 │       ├── customers.md              # Customer analytics
 │       ├── sales.md                  # Sales performance
 │       ├── weather.md                # Weather insights
-│       └── data/                     # Parquet data files
+│       └── data/                     # DuckDB database file (vibe.duckdb)
 ├── azure/
 │   ├── setup.sh                      # Provision Azure resources
 │   ├── teardown.sh                   # Remove Azure resources
@@ -169,8 +169,8 @@ The platform includes an interactive web dashboard built with Observable Framewo
 ### Dashboard Commands
 
 ```bash
-# Export dbt data to Parquet for dashboard
-python scripts/export_dashboard_data.py
+# Copy DuckDB to dashboard (the dashboard reads directly from the .duckdb file)
+cp data/processed/vibe.duckdb dashboard/src/data/vibe.duckdb
 
 # Install dashboard dependencies
 cd dashboard && npm install
@@ -191,7 +191,7 @@ The dashboard build and deploy is **part of the self-healing agentic pipeline**.
 Claude Agent Mission:
   1. Extract API data
   2. Run dbt build
-  3. Export dashboard data (parquet)
+  3. Copy DuckDB to dashboard (vibe.duckdb)
   4. Build dashboard (npm run build)  ← Claude can fix errors here too
 
 Post-Agent:
@@ -201,7 +201,7 @@ Post-Agent:
 
 **UI-Only Changes workflow (`dashboard.yml`):**
 - For CSS, layout, or styling changes that don't need fresh data
-- Downloads existing parquet from Azure, builds, and deploys
+- Downloads existing DuckDB from Azure, builds, and deploys
 - NOT part of self-healing (simpler, faster)
 
 URL: `https://<username>.github.io/vibe-data-platform/`
@@ -357,7 +357,7 @@ The platform supports Azure Blob Storage for cloud persistence and GitHub Action
 | `raw` | Source data files (CSV, Parquet, JSON) |
 | `duckdb` | DuckDB database file |
 | `logs` | Pipeline execution logs |
-| `dashboard` | Exported parquet files for dashboard |
+| `dashboard` | DuckDB file for dashboard (vibe.duckdb) |
 
 ### Data Sync Commands
 
@@ -412,7 +412,7 @@ The agentic workflow uses `anthropics/claude-code-action` to run the full pipeli
 │                                                             │
 │  1. Extract API data (weather, etc.)                        │
 │  2. Run dbt build                                           │
-│  3. Export dashboard data to Parquet                        │
+│  3. Copy DuckDB to dashboard                                │
 │  4. Build dashboard (npm run build)                         │
 │  5. If error → /diagnose → /apply-fix → retry (max 3x)     │
 │  6. If unrecoverable → Create detailed GitHub Issue         │

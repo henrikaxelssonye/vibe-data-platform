@@ -38,9 +38,9 @@ const segmentColors = {
 ```
 
 ```js
+// Initialize DuckDB with the database file directly
 const db = DuckDBClient.of({
-  customer_orders: FileAttachment("data/customer_orders.parquet"),
-  orders_summary: FileAttachment("data/orders_summary.parquet")
+  vibe: FileAttachment("data/vibe.duckdb")
 });
 ```
 
@@ -55,7 +55,7 @@ const salesMetricsResult = await db.query(`
     SUM(pending_orders) as pending_orders,
     SUM(cancelled_orders) as cancelled_orders,
     AVG(total_revenue) as avg_customer_value
-  FROM customer_orders
+  FROM vibe.customer_orders
 `);
 
 // Convert DuckDB Arrow result to JS array
@@ -217,7 +217,7 @@ const revenueDataResult = await db.query(`
     total_revenue,
     total_orders,
     customer_segment
-  FROM customer_orders
+  FROM vibe.customer_orders
   WHERE total_revenue > 0
   ORDER BY total_revenue DESC
 `);

@@ -17,6 +17,8 @@ customer_orders as (
         c.created_at as customer_since,
         coalesce(o.total_orders, 0) as total_orders,
         coalesce(o.completed_orders, 0) as completed_orders,
+        coalesce(o.pending_orders, 0) as pending_orders,
+        coalesce(o.cancelled_orders, 0) as cancelled_orders,
         coalesce(o.total_revenue, 0) as total_revenue,
         o.first_order_date,
         o.last_order_date,

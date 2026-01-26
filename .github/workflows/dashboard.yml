@@ -80,23 +80,21 @@ jobs:
         run: |
           mkdir -p dashboard/src/data
 
-          # Download parquet files from Azure
-          for file in customer_orders orders_summary weather_daily; do
-            echo "Downloading ${file}.parquet..."
-            az storage blob download \
-              --account-name $AZURE_STORAGE_ACCOUNT \
-              --container-name dashboard \
-              --name "${file}.parquet" \
-              --file "dashboard/src/data/${file}.parquet" \
-              --auth-mode key \
-              --account-key $AZURE_STORAGE_KEY \
-              2>/dev/null || echo "Failed to download ${file}.parquet"
-          done
+          # Download DuckDB file from Azure
+          echo "Downloading vibe.duckdb..."
+          az storage blob download \
+            --account-name $AZURE_STORAGE_ACCOUNT \
+            --container-name dashboard \
+            --name "vibe.duckdb" \
+            --file "dashboard/src/data/vibe.duckdb" \
+            --auth-mode key \
+            --account-key $AZURE_STORAGE_KEY \
+            2>/dev/null || echo "Failed to download vibe.duckdb"
 
-          # Check if we got any data
-          if ls dashboard/src/data/*.parquet 1> /dev/null 2>&1; then
+          # Check if we got the data
+          if [ -f "dashboard/src/data/vibe.duckdb" ]; then
             echo "downloaded=true" >> $GITHUB_OUTPUT
-            echo "Successfully downloaded dashboard data from Azure"
+            echo "Successfully downloaded dashboard DuckDB from Azure"
           else
             echo "downloaded=false" >> $GITHUB_OUTPUT
             echo "No data downloaded from Azure"
@@ -105,17 +103,23 @@ jobs:
       - name: Generate sample data (fallback)
         if: steps.download_data.outputs.downloaded != 'true' && inputs.use_sample_data != 'false'
         run: |
-          echo "Using sample data as fallback..."
-          python scripts/export_dashboard_data.py --sample
+          echo "Using sample DuckDB as fallback..."
+          # Copy the local DuckDB file if available, or fail
+          if [ -f "data/processed/vibe.duckdb" ]; then
+            cp data/processed/vibe.duckdb dashboard/src/data/vibe.duckdb
+          else
+            echo "ERROR: No local DuckDB file available for fallback"
+            exit 1
+          fi
 
       - name: Verify data files exist
         run: |
           echo "Data files in dashboard/src/data:"
           ls -la dashboard/src/data/ || echo "No data directory"
 
-          # Fail if no parquet files
-          if ! ls dashboard/src/data/*.parquet 1> /dev/null 2>&1; then
-            echo "ERROR: No parquet files found for dashboard"
+          # Fail if no DuckDB file
+          if [ ! -f "dashboard/src/data/vibe.duckdb" ]; then
+            echo "ERROR: No vibe.duckdb found for dashboard"
             exit 1
           fi
 
