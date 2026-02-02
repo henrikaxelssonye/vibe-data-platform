@@ -310,19 +310,6 @@ jobs:
 
             Now, run the pipeline and handle whatever comes up. Good luck!
 
-          additional_permissions: |
-            Bash(dbt:*)
-            Bash(cd:*)
-            Bash(git:*)
-            Bash(gh:*)
-            Bash(pip:*)
-            Bash(python:*)
-            Bash(npm:*)
-            Bash(cat:*)
-            Bash(ls:*)
-            Bash(mkdir:*)
-            Bash(az:*)
-
           claude_args: |
             --max-turns 75
             --allowedTools "Bash,Edit,Read,Write,Glob,Grep,WebFetch,WebSearch,TodoWrite,Skill"
