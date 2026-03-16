@@ -63,6 +63,7 @@ on:
 env:
   AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
   AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   # =============================================================================
@@ -74,7 +75,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0  # Full history for proper git operations
@@ -85,7 +86,7 @@ jobs:
           git config user.email "claude-agent@${{ github.repository_owner }}.github.io"
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -96,7 +97,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
@@ -139,6 +140,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          display_report: 'true'
 
           prompt: |
             # You are a Developer on the Vibe Data Platform
@@ -319,7 +321,7 @@ jobs:
       # =========================================================================
       - name: Upload dashboard artifact for Pages
         if: success()
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: dashboard/dist
 
@@ -396,7 +398,7 @@ jobs:
 
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: pipeline-results
           path: |

@@ -45,6 +45,7 @@ permissions:
 env:
   AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
   AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   build:
@@ -52,15 +53,15 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
@@ -130,7 +131,7 @@ jobs:
         run: npm run build
 
       - name: Upload artifact for Pages
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: dashboard/dist
 
