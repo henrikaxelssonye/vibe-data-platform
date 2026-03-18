@@ -18,4 +18,5 @@ models:
       - name: status
         tests:
           - accepted_values:
-              values: ['completed', 'pending', 'cancelled']
+              arguments:
+                values: ['completed', 'pending', 'cancelled']

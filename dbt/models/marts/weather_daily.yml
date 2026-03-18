@@ -37,7 +37,8 @@ models:
         description: "Temperature classification"
         tests:
           - accepted_values:
-              values: ['freezing', 'cold', 'mild', 'warm', 'hot']
+              arguments:
+                values: ['freezing', 'cold', 'mild', 'warm', 'hot']
       - name: precipitation_mm
         description: "Total precipitation in millimeters"
         tests:
@@ -54,7 +55,8 @@ models:
         description: "Wind speed classification"
         tests:
           - accepted_values:
-              values: ['calm', 'light', 'moderate', 'strong', 'very_strong']
+              arguments:
+                values: ['calm', 'light', 'moderate', 'strong', 'very_strong']
       - name: year
         description: "Year extracted from forecast date"
       - name: month

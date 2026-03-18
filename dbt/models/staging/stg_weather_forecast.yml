@@ -43,12 +43,14 @@ models:
         description: "Precipitation classification (dry, light, moderate, heavy)"
         tests:
           - accepted_values:
-              values: ['dry', 'light_precipitation', 'moderate_precipitation', 'heavy_precipitation']
+              arguments:
+                values: ['dry', 'light_precipitation', 'moderate_precipitation', 'heavy_precipitation']
       - name: temperature_category
         description: "Temperature classification (freezing, cold, mild, warm, hot)"
         tests:
           - accepted_values:
-              values: ['freezing', 'cold', 'mild', 'warm', 'hot']
+              arguments:
+                values: ['freezing', 'cold', 'mild', 'warm', 'hot']
       - name: extracted_at
         description: "Timestamp when data was extracted from API"
       - name: loaded_at
